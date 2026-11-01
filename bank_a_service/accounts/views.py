@@ -16,7 +16,8 @@ from accounts.services import (
     get_account_balance,
     reserve_funds,
     commit_reservation,
-    release_reservation
+    release_reservation,
+    get_transfer_status
 )
 
 
@@ -146,3 +147,32 @@ class ReleaseReservationAPIView(APIView):
                 {'error': exc.messages},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+class TransferStatusAPIView(APIView):
+
+    def get(self, request, transfer_id):
+
+        try:
+            result = get_transfer_status(transfer_id)
+
+            return Response(
+                {
+                    "message": "Transfer status retrieved successfully.",
+                    "data": result
+                },
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as exc:
+            from django.http import Http404
+
+            if isinstance(exc, Http404):
+                return Response(
+                    {
+                        "message": "Transfer reservation not found.",
+                        "transfer_id": str(transfer_id)
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            raise

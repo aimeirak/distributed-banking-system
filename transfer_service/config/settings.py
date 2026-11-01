@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -37,6 +38,11 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+     # Third-party applications
+    'rest_framework',
+
+    # Local applications
+    'transfers',
 ]
 
 MIDDLEWARE = [
@@ -73,11 +79,29 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.sqlite3",
+#         "NAME": BASE_DIR / "db.sqlite3",
+#     }
+# }
+
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'transfers_db',
+        'USER': 'postgres',
+        'PASSWORD': 'Admin@123',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
+}
+
+CELERY_BEAT_SCHEDULE = {
+    "scan-incomplete-transfers-every-30-seconds": {
+        "task": "transfers.tasks.scan_incomplete_transfers",
+        "schedule": 30.0,
+    },
 }
 
 
@@ -121,3 +145,33 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+BANK_A_BASE_URL = os.getenv(
+    "BANK_A_BASE_URL",
+    "http://127.0.0.1:8001"
+)
+
+BANK_B_BASE_URL = os.getenv(
+    "BANK_B_BASE_URL",
+    "http://127.0.0.1:8002"
+)
+
+BANK_REQUEST_TIMEOUT = 10
+
+
+CELERY_BROKER_URL = "amqp://guest:guest@localhost:5672//"
+
+CELERY_TASK_SERIALIZER = "json"
+
+CELERY_ACCEPT_CONTENT = ["json"]
+
+CELERY_RESULT_SERIALIZER = "json"
+
+CELERY_TIMEZONE = "Africa/Kigali"
+
+CELERY_ENABLE_UTC = True
+
+CELERY_TASK_TRACK_STARTED = True
+
+CELERY_TASK_IGNORE_RESULT = True

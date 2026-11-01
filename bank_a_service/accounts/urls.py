@@ -5,7 +5,8 @@ from accounts.views import (
     AccountBalanceAPIView,
     ReserveFundsAPIView,
     CommitReservationAPIView,
-    ReleaseReservationAPIView
+    ReleaseReservationAPIView,
+    TransferStatusAPIView
 )
 
 urlpatterns = [
@@ -14,4 +15,5 @@ urlpatterns = [
     path('transfers/reserve/',ReserveFundsAPIView.as_view(),name='reserve-funds'),
     path('transfers/commit/',CommitReservationAPIView.as_view(),name='commit-reservation'),
     path('transfers/release/',ReleaseReservationAPIView.as_view(),name='release-reservation'),
+    path('transfers/<uuid:transfer_id>/status/',TransferStatusAPIView.as_view(),name='transfer-status'),
 ]

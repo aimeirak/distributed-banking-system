@@ -233,3 +233,24 @@ def release_reservation(transfer_id):
     reservation.save(update_fields=["status", "updated_at"])
 
     return reservation
+
+
+def get_transfer_status(transfer_id):
+    """
+    Retrieve the current reservation status for a transfer.
+    """
+    transfer_id = UUID(str(transfer_id))
+
+    reservation = get_object_or_404(
+        AccountReservation.objects.select_related("account"),
+        transfer_id=transfer_id
+    )
+
+    return {
+        "transfer_id": str(reservation.transfer_id),
+        "account_id": str(reservation.account_id),
+        "account_number": reservation.account.account_number,
+        "amount": str(reservation.amount),
+        "currency": reservation.account.currency,
+        "status": reservation.status,
+    }
