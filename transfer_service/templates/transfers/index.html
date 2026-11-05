@@ -101,6 +101,53 @@
         </div>
     </div>
 
+
+    <!-- Transfer analytics -->
+    <div class="row">
+        <div class="col-xl-8 d-flex">
+            <div class="card flex-fill w-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-1">Monthly Transfer Activity</h5>
+                    <div class="bank-section-subtitle">Completed transfers and transfers requiring review</div>
+                </div>
+                <div class="card-body">
+                    <div style="height:290px;position:relative">
+                        <canvas id="monthlyTransferChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-4 d-flex">
+            <div class="card flex-fill w-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-1">Transfer Status Distribution</h5>
+                    <div class="bank-section-subtitle">Current transfer portfolio</div>
+                </div>
+                <div class="card-body">
+                    <div style="height:290px;position:relative">
+                        <canvas id="transferStatusChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12 d-flex">
+            <div class="card flex-fill w-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-1">Monthly Transfer Value</h5>
+                    <div class="bank-section-subtitle">Amounts grouped by currency; different currencies are not combined</div>
+                </div>
+                <div class="card-body">
+                    <div style="height:270px;position:relative">
+                        <canvas id="monthlyTransferValueChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Quick actions -->
     <div class="card">
         <div class="card-header">
@@ -223,4 +270,89 @@
     </div>
 
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    if (typeof Chart === "undefined") {
+        console.error("Chart.js was not loaded.");
+        return;
+    }
+
+    const months = {{ chart_month_labels_json|default:"[]"|safe }};
+    const activity = {{ monthly_activity_json|default:"[]"|safe }};
+    const statusLabels = {{ status_labels_json|default:"[]"|safe }};
+    const statusValues = {{ status_values_json|default:"[]"|safe }};
+    const valueDatasets = {{ monthly_value_datasets_json|default:"[]"|safe }};
+
+    const activityCanvas = document.getElementById("monthlyTransferChart");
+    if (activityCanvas) {
+        new Chart(activityCanvas, {
+            type: "bar",
+            data: {
+                labels: months,
+                datasets: [
+                    { label: "Completed", data: activity.map(x => x.completed),
+                      backgroundColor: "#1cbb8c", borderRadius: 5 },
+                    { label: "Requires review", data: activity.map(x => x.requires_review),
+                      backgroundColor: "#fcb92c", borderRadius: 5 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: "bottom" } },
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+            }
+        });
+    }
+
+    const statusCanvas = document.getElementById("transferStatusChart");
+    if (statusCanvas) {
+        new Chart(statusCanvas, {
+            type: "doughnut",
+            data: {
+                labels: statusLabels,
+               datasets: [{
+                data: statusValues,
+                backgroundColor: [
+                    "#16A34A", // Completed - Green
+                    "#2563EB", // Processing - Blue
+                    "#F59E0B", // Requires Review - Orange
+                    "#DC2626"  // Failed - Red
+                ],
+                hoverBackgroundColor: [
+                    "#15803D",
+                    "#1D4ED8",
+                    "#D97706",
+                    "#B91C1C"
+                ],
+                borderColor: "#FFFFFF",
+                borderWidth: 3,
+                hoverOffset: 8
+            }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: "68%",
+                plugins: { legend: { position: "bottom" } }
+            }
+        });
+    }
+
+    const valueCanvas = document.getElementById("monthlyTransferValueChart");
+    if (valueCanvas) {
+        new Chart(valueCanvas, {
+            type: "line",
+            data: { labels: months, datasets: valueDatasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: "index", intersect: false },
+                plugins: { legend: { position: "bottom" } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

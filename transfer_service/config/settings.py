@@ -199,6 +199,7 @@ CELERY_TASK_IGNORE_RESULT = True
 # REST API security: JWT authentication is required by default.
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
+         "rest_framework.authentication.SessionAuthentication",
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [

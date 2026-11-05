@@ -1,3 +1,5 @@
+from urllib import response
+
 import requests
 from django.conf import settings
 
@@ -84,3 +86,31 @@ class BankAClient:
 
         response.raise_for_status()
         return response.json()["data"]
+
+    def get_accounts(self):
+        url = f"{self.base_url}/api/accounts/"
+
+        response = requests.get(
+            url,
+            headers=self.headers,
+            timeout=self.timeout
+        )
+
+        response.raise_for_status()
+        return response.json()
+
+    def get_customer_accounts(self, customer_id):
+        url = (
+            f"{self.base_url}/api/accounts/customer/"
+            f"{customer_id}/"
+        )
+
+        response = requests.get(
+            url,
+            headers=self.headers,
+            timeout=self.timeout
+        )
+
+        response.raise_for_status()
+        return response.json()
+        

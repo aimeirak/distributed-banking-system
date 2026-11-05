@@ -150,3 +150,41 @@ class TransferStatusAPIView(APIView):
                 )
 
             raise
+
+class BankAccountLookupAPIView(APIView):
+    permission_classes = [IsInternalService]
+
+    def get(self, request):
+        account_number = request.query_params.get("account_number")
+
+        if not account_number:
+            return Response(
+                {"message": "Account number is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            account = BankAccount.objects.get(
+                account_number=account_number.strip()
+            )
+
+        except BankAccount.DoesNotExist:
+            return Response(
+                {"message": "Bank account not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if account.status != BankAccount.AccountStatus.ACTIVE:
+            return Response(
+                {"message": "Receiver account is not active."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response({
+            "verified": True,
+            "account_id": str(account.id),
+            "account_number": account.account_number,
+            "customer_name": account.customer_name,
+            "currency": account.currency,
+            "status": account.status
+        }, status=status.HTTP_200_OK)

@@ -244,3 +244,16 @@ class VerifyAccountOwnershipAPIView(APIView):
                 },
                 status=status.HTTP_403_FORBIDDEN
             )
+
+class CustomerBankAccountsAPIView(APIView):
+    permission_classes = [IsInternalService]
+
+    def get(self, request, customer_id):
+        accounts = BankAccount.objects.filter(
+            owner_customer_id=customer_id,
+            status=BankAccount.AccountStatus.ACTIVE
+        )
+
+        serializer = BankAccountSerializer(accounts, many=True)
+
+        return Response(serializer.data, status=status.HTTP_200_OK)

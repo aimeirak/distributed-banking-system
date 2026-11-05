@@ -1,5 +1,6 @@
 from django.db import transaction, IntegrityError
 
+import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -12,6 +13,17 @@ from transfers.services.saga_orchestrator import SagaOrchestrator
 from transfers.services.recovery_service import TransferRecoveryService
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from .permissions import IsCustomer, IsSystemAdmin
+from transfers.services.bank_a_client import BankAClient
+from transfers.services.bank_b_client import BankBClient
+from transfers.permissions import IsCustomer
+from django.contrib.auth.decorators import login_required
+import json
+from decimal import Decimal
+
+from django.db.models import Count, Sum, Q
+from django.db.models.functions import TruncMonth
+from django.shortcuts import render
+from django.utils import timezone
 
 from django.shortcuts import render
 
@@ -249,27 +261,179 @@ class CustomerProfileAPIView(APIView):
             "role": profile.role,
             "phone_number": profile.phone_number,
         })
-
+    
+@login_required(login_url="login")
 def dashboard(request):
+    year = timezone.localdate().year
+
+    processing_statuses = [
+        Transfer.TransferStatus.PENDING,
+        Transfer.TransferStatus.RESERVING,
+        Transfer.TransferStatus.RESERVED,
+        Transfer.TransferStatus.CREDITING,
+        Transfer.TransferStatus.CREDITED,
+        Transfer.TransferStatus.COMMITTING,
+        Transfer.TransferStatus.RECOVERING,
+    ]
+
+    month_labels = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ]
+
+    # Monthly counts for the current calendar year.
+    monthly_rows = (
+        Transfer.objects
+        .filter(created_at__year=year)
+        .annotate(month=TruncMonth("created_at"))
+        .values("month")
+        .annotate(
+            completed=Count(
+                "id",
+                filter=Q(status=Transfer.TransferStatus.COMPLETED),
+            ),
+            requires_review=Count(
+                "id",
+                filter=Q(status=Transfer.TransferStatus.REQUIRES_REVIEW),
+            ),
+        )
+        .order_by("month")
+    )
+
+    monthly_by_number = {
+        row["month"].month: row for row in monthly_rows if row["month"]
+    }
+
+    monthly_activity = [
+        {
+            "completed": monthly_by_number.get(month, {}).get("completed", 0),
+            "requires_review": monthly_by_number.get(month, {}).get("requires_review", 0),
+        }
+        for month in range(1, 13)
+    ]
+
+    # Status distribution.
+    status_labels = ["Completed", "Processing", "Requires Review", "Failed"]
+    status_values = [
+        Transfer.objects.filter(
+            status=Transfer.TransferStatus.COMPLETED
+        ).count(),
+        Transfer.objects.filter(status__in=processing_statuses).count(),
+        Transfer.objects.filter(
+            status=Transfer.TransferStatus.REQUIRES_REVIEW
+        ).count(),
+        Transfer.objects.filter(status="FAILED").count(),
+    ]
+
+    # Monthly transfer value grouped by currency to avoid mixing currencies.
+    amount_rows = list(
+        Transfer.objects
+        .filter(created_at__year=year)
+        .exclude(status="FAILED")
+        .annotate(month=TruncMonth("created_at"))
+        .values("month", "currency")
+        .annotate(total_amount=Sum("amount"))
+        .order_by("month", "currency")
+    )
+
+    currencies = sorted({
+        row["currency"] for row in amount_rows if row["currency"]
+    })
+
+    monthly_value_datasets = []
+    for currency in currencies:
+        amounts_by_month = {}
+        for row in amount_rows:
+            if row["currency"] == currency and row["month"]:
+                amounts_by_month[row["month"].month] = float(
+                    row["total_amount"] or Decimal("0")
+                )
+
+        monthly_value_datasets.append({
+            "label": currency,
+            "data": [
+                amounts_by_month.get(month, 0)
+                for month in range(1, 13)
+            ],
+            "fill": False,
+            "tension": 0.3,
+        })
 
     context = {
         "total_transfers": Transfer.objects.count(),
+        "completed_transfers": status_values[0],
+        "pending_transfers": status_values[1],
+        "review_transfers": status_values[2],
+        "recent_transfers": Transfer.objects.order_by("-created_at")[:10],
 
-        "completed_transfers": Transfer.objects.filter(
-            status=Transfer.TransferStatus.COMPLETED
-        ).count(),
-
-        "pending_transfers": Transfer.objects.filter(
-            status=Transfer.TransferStatus.PENDING
-        ).count(),
-
-        "review_transfers": Transfer.objects.filter(
-            status=Transfer.TransferStatus.REQUIRES_REVIEW
-        ).count(),
+        "chart_month_labels_json": json.dumps(month_labels),
+        "monthly_activity_json": json.dumps(monthly_activity),
+        "status_labels_json": json.dumps(status_labels),
+        "status_values_json": json.dumps(status_values),
+        "monthly_value_datasets_json": json.dumps(monthly_value_datasets),
     }
 
-    return render(
-        request,
-        "transfers/index.html",
-        context
-    )
+    return render(request, "transfers/index.html", context)
+
+class CustomerSourceAccountsAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsCustomer]
+
+    def get(self, request):
+        try:
+            customer_id = request.user.profile.customer_id
+
+            accounts = BankAClient().get_customer_accounts(
+                customer_id
+            )
+
+            return Response({
+                "accounts": accounts
+            }, status=status.HTTP_200_OK)
+
+        except requests.RequestException:
+            return Response(
+                {"message": "Unable to retrieve Bank A accounts."},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+
+class VerifyDestinationAccountAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsCustomer]
+
+    def get(self, request):
+        account_number = request.query_params.get(
+            "account_number", ""
+        ).strip()
+
+        if not account_number:
+            return Response(
+                {"message": "Please enter the receiver account number."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            account = BankBClient().lookup_account(
+                account_number
+            )
+
+            if account is None:
+                return Response(
+                    {"verified": False,
+                     "message": "Receiver account was not found."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            return Response({
+                "verified": True,
+                "account": account
+            }, status=status.HTTP_200_OK)
+
+        except requests.RequestException:
+            return Response(
+                {"message": "Unable to verify receiver account with Bank B."},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+@login_required(login_url="login")
+def new_transfer_page(request):
+    return render(request, "transfers/transfer.html")     
