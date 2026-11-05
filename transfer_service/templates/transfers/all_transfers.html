@@ -1,0 +1,461 @@
+
+{% extends "transfers/base.html" %}
+{% load static %}
+
+{% block title %}All Transfers | Distributed Banking{% endblock %}
+
+{% block page_title %}
+<div class="d-flex justify-content-between align-items-center flex-wrap">
+    <div>
+        <h1 class="h3 mb-1">All Transfers</h1>
+        <p class="text-muted mb-0">View and track your money transfers.</p>
+    </div>
+    <a href="{% url 'new-transfer-page' %}" class="btn btn-primary">
+        <i class="align-middle" data-feather="plus"></i>
+        New Transfer
+    </a>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+<style>
+    .transfer-details-dialog {
+        max-width: 980px;
+    }
+
+    .transfer-details-modal {
+        border: 0;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 18px 60px rgba(15, 23, 42, .20);
+    }
+
+    .transfer-modal-header {
+        padding: 20px 24px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e8edf3;
+    }
+
+    .transfer-modal-icon {
+        width: 36px;
+        height: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #2563eb;
+        background: #eaf1ff;
+        border-radius: 10px;
+    }
+
+    .transfer-modal-body {
+        padding: 24px;
+        background: #fff;
+    }
+
+    .transfer-modal-footer {
+        padding: 14px 24px;
+        background: #f8fafc;
+        border-top: 1px solid #e8edf3;
+    }
+
+    .transfer-detail-hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 20px;
+        padding: 22px;
+        border: 1px solid #e8edf3;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #f8fbff, #fff);
+    }
+
+    .transfer-detail-amount {
+        font-size: clamp(1.7rem, 4vw, 2.25rem);
+        font-weight: 750;
+        letter-spacing: -.7px;
+        color: #172b4d;
+        line-height: 1.2;
+    }
+
+    .transfer-detail-label {
+        display: block;
+        color: #8492a6;
+        font-size: .76rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .45px;
+        margin-bottom: 6px;
+    }
+
+    .transfer-info-card {
+        height: 100%;
+        padding: 17px;
+        border: 1px solid #e8edf3;
+        border-radius: 12px;
+        background: #fff;
+    }
+
+    .transfer-info-value {
+        color: #243b53;
+        font-weight: 600;
+        overflow-wrap: anywhere;
+    }
+
+    .transfer-section-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #243b53;
+        margin-bottom: 14px;
+    }
+
+    .transfer-timeline {
+        position: relative;
+        padding-left: 4px;
+    }
+
+    .transfer-timeline-item {
+        position: relative;
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr);
+        gap: 12px;
+        padding-bottom: 22px;
+    }
+
+    .transfer-timeline-item:last-child {
+        padding-bottom: 0;
+    }
+
+    .transfer-timeline-marker {
+        position: relative;
+        z-index: 1;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: #dcfce7;
+        color: #15803d;
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    .transfer-timeline-marker.failed {
+        background: #fee2e2;
+        color: #b91c1c;
+    }
+
+    .transfer-timeline-marker.pending {
+        background: #e2e8f0;
+        color: #64748b;
+    }
+
+    .transfer-timeline-item:not(:last-child)::after {
+        content: "";
+        position: absolute;
+        left: 14px;
+        top: 30px;
+        bottom: 0;
+        width: 2px;
+        background: #e2e8f0;
+    }
+
+    .transfer-step-card {
+        padding: 13px 15px;
+        border: 1px solid #e8edf3;
+        border-radius: 10px;
+        background: #fff;
+        min-width: 0;
+    }
+
+    .transfer-step-name {
+        color: #243b53;
+        font-weight: 650;
+        overflow-wrap: anywhere;
+    }
+
+    .transfer-step-meta {
+        color: #8492a6;
+        font-size: .78rem;
+    }
+
+    .transfer-failure-box {
+        padding: 14px 16px;
+        border: 1px solid #fed7aa;
+        border-radius: 10px;
+        background: #fff7ed;
+        color: #9a3412;
+        overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 576px) {
+        .transfer-modal-header,
+        .transfer-modal-body {
+            padding: 16px;
+        }
+
+        .transfer-detail-hero {
+            align-items: flex-start;
+            flex-direction: column;
+            padding: 17px;
+        }
+
+        .transfer-details-dialog {
+            margin: 10px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Summary cards -->
+<div class="row">
+    <div class="col-md-6 col-xl-3">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted">Total Transfers</h6>
+                        <h2 id="total-transfers" class="mb-0">0</h2>
+                    </div>
+                    <div class="avatar bg-primary-subtle rounded p-2">
+                        <i data-feather="repeat" class="text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-xl-3">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted">Completed</h6>
+                        <h2 id="completed-transfers" class="mb-0 text-success">0</h2>
+                    </div>
+                    <div class="avatar bg-success-subtle rounded p-2">
+                        <i data-feather="check-circle" class="text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-xl-3">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted">Processing</h6>
+                        <h2 id="processing-transfers" class="mb-0 text-info">0</h2>
+                    </div>
+                    <div class="avatar bg-info-subtle rounded p-2">
+                        <i data-feather="clock" class="text-info"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-xl-3">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted">Requires Review</h6>
+                        <h2 id="review-transfers" class="mb-0 text-warning">0</h2>
+                    </div>
+                    <div class="avatar bg-warning-subtle rounded p-2">
+                        <i data-feather="alert-circle" class="text-warning"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transfer history -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title mb-0">Transfer History</h5>
+        <p class="text-muted small mb-0">
+            Search, filter and monitor your transactions.
+        </p>
+    </div>
+
+    <div class="card-body">
+
+        <!-- Search and filters -->
+        <form id="transfer-filter-form" class="row g-3 mb-4">
+
+            <div class="col-lg-4">
+                <label for="search-input" class="form-label">
+                    Search
+                </label>
+                <input
+                    type="text"
+                    id="search-input"
+                    class="form-control"
+                    placeholder="Transfer ID or account number"
+                >
+            </div>
+
+            <div class="col-lg-2">
+                <label for="status-filter" class="form-label">
+                    Status
+                </label>
+                <select id="status-filter" class="form-select">
+                    <option value="">All Statuses</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="RESERVING">Reserving</option>
+                    <option value="RESERVED">Reserved</option>
+                    <option value="CREDITING">Crediting</option>
+                    <option value="CREDITED">Credited</option>
+                    <option value="COMMITTING">Committing</option>
+                    <option value="COMPLETED">Completed</option>
+                    <option value="COMPENSATING">Compensating</option>
+                    <option value="RECOVERING">Recovering</option>
+                    <option value="REQUIRES_REVIEW">Requires Review</option>
+                    <option value="FAILED">Failed</option>
+                </select>
+            </div>
+
+            <div class="col-lg-2">
+                <label for="date-from" class="form-label">From Date</label>
+                <input type="date" id="date-from" class="form-control">
+            </div>
+
+            <div class="col-lg-2">
+                <label for="date-to" class="form-label">To Date</label>
+                <input type="date" id="date-to" class="form-control">
+            </div>
+
+            <div class="col-lg-2 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    Search
+                </button>
+                <button
+                    type="button"
+                    id="reset-filters"
+                    class="btn btn-light border"
+                    title="Reset filters"
+                >
+                    <i data-feather="refresh-ccw"></i>
+                </button>
+            </div>
+
+        </form>
+
+        <div id="transfer-error" class="alert alert-danger d-none"></div>
+
+        <!-- Table -->
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Transfer ID</th>
+                        <th>Source Account</th>
+                        <th>Destination Account</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th class="text-end">Action</th>
+                    </tr>
+                </thead>
+
+                <tbody id="transfers-table-body">
+                    <tr>
+                        <td colspan="7" class="text-center py-4">
+                            Loading transfers...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="d-flex justify-content-between align-items-center flex-wrap mt-3">
+            <small id="pagination-info" class="text-muted">
+                Loading...
+            </small>
+
+            <div class="btn-group">
+                <button
+                    type="button"
+                    id="previous-page"
+                    class="btn btn-outline-secondary btn-sm"
+                    disabled
+                >
+                    Previous
+                </button>
+
+                <button
+                    type="button"
+                    id="next-page"
+                    class="btn btn-outline-secondary btn-sm"
+                    disabled
+                >
+                    Next
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Transfer details modal -->
+<div class="modal fade" id="transfer-details-modal" tabindex="-1"
+     aria-labelledby="transfer-details-title" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable transfer-details-dialog">
+        <div class="modal-content transfer-details-modal">
+            <div class="modal-header transfer-modal-header d-flex justify-content-between align-items-start">
+                <div class="min-w-0">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="transfer-modal-icon">
+                            <i data-feather="file-text"></i>
+                        </span>
+                        <h5 class="modal-title mb-0" id="transfer-details-title">
+                            Transfer Details
+                        </h5>
+                    </div>
+                    <div class="d-flex align-items-center flex-wrap gap-2 mt-1">
+                        <small class="text-muted text-break" id="detail-transfer-id"></small>
+                        <button type="button" id="copy-transfer-reference"
+                                class="btn btn-sm btn-light border py-0" title="Copy transfer reference">
+                            <i data-feather="copy" style="width:13px;height:13px"></i>
+                            <span class="small">Copy</span>
+                        </button>
+                        <span id="copy-reference-feedback" class="small text-success d-none">Copied</span>
+                    </div>
+                </div>
+                <button type="button" class="btn-close"
+                        data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body transfer-modal-body" id="transfer-details-content">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="text-muted mt-3 mb-0">Loading transfer details...</p>
+                </div>
+            </div>
+
+            <div class="modal-footer transfer-modal-footer">
+                <button type="button" class="btn btn-light border"
+                        data-bs-dismiss="modal">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/all_transfers.js' %}"></script>
+{% endblock %}

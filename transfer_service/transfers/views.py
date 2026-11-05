@@ -1,5 +1,6 @@
 from django.db import transaction, IntegrityError
 
+from flask import request
 import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -24,8 +25,7 @@ from django.db.models import Count, Sum, Q
 from django.db.models.functions import TruncMonth
 from django.shortcuts import render
 from django.utils import timezone
-
-from django.shortcuts import render
+from rest_framework.pagination import PageNumberPagination
 
 class TransferCreateAPIView(APIView):
     # Temporary safe default: account ownership checks are not yet implemented.
@@ -437,3 +437,142 @@ class VerifyDestinationAccountAPIView(APIView):
 @login_required(login_url="login")
 def new_transfer_page(request):
     return render(request, "transfers/transfer.html")     
+
+@login_required(login_url="login")
+def all_transfers_page(request):
+        return render(request, "transfers/all_transfers.html")  
+
+
+
+class CustomerTransferPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 50
+
+
+class CustomerTransferListAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsCustomer]
+
+    def get(self, request):
+        # Only retrieve transfers initiated by the logged-in customer.
+        customer_transfers = Transfer.objects.filter(
+            created_by=request.user
+        )
+
+        # Calculate summary statistics using all customer transfers.
+        summary = {
+            "total": customer_transfers.count(),
+            "completed": customer_transfers.filter(
+                status=Transfer.TransferStatus.COMPLETED
+            ).count(),
+            "processing": customer_transfers.filter(
+                status__in=[
+                    Transfer.TransferStatus.PENDING,
+                    Transfer.TransferStatus.RESERVING,
+                    Transfer.TransferStatus.RESERVED,
+                    Transfer.TransferStatus.CREDITING,
+                    Transfer.TransferStatus.CREDITED,
+                    Transfer.TransferStatus.COMMITTING,
+                    Transfer.TransferStatus.RECOVERING,
+                    Transfer.TransferStatus.COMPENSATING,
+                ]
+            ).count(),
+            "requires_review": customer_transfers.filter(
+                status=Transfer.TransferStatus.REQUIRES_REVIEW
+            ).count(),
+            "failed": customer_transfers.filter(
+                status=Transfer.TransferStatus.FAILED
+            ).count(),
+        }
+
+        queryset = customer_transfers
+
+        # Search by source or destination account number.
+        search = request.query_params.get("search", "").strip()
+
+        if search:
+            queryset = queryset.filter(
+                Q(source_account_number__icontains=search)
+                | Q(destination_account_number__icontains=search)
+            )
+
+            # Also support searching by transfer UUID.
+            try:
+                transfer_id = uuid.UUID(search)
+                queryset = queryset | customer_transfers.filter(
+                    id=transfer_id
+                )
+            except ValueError:
+                pass
+
+        # Filter by transfer status.
+        transfer_status = request.query_params.get("status", "").strip()
+
+        if transfer_status:
+            valid_statuses = [
+                choice[0] for choice in Transfer.TransferStatus.choices
+            ]
+
+            if transfer_status not in valid_statuses:
+                return Response(
+                    {"message": "Invalid transfer status."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            queryset = queryset.filter(status=transfer_status)
+
+        # Filter by creation date.
+        date_from = request.query_params.get("date_from")
+        date_to = request.query_params.get("date_to")
+
+        if date_from:
+            queryset = queryset.filter(created_at__date__gte=date_from)
+
+        if date_to:
+            queryset = queryset.filter(created_at__date__lte=date_to)
+
+        queryset = queryset.order_by("-created_at")
+
+        # Paginate results.
+        paginator = CustomerTransferPagination()
+        page = paginator.paginate_queryset(queryset, request)
+
+        serializer = TransferCreateSerializer(page, many=True)
+
+        return paginator.get_paginated_response({
+            "summary": summary,
+            "transfers": serializer.data,
+        })
+
+class AccountManagementAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """
+        Render the Account Management page.
+        """
+
+        try:
+            role = request.user.profile.role
+        except Exception:
+            role = None
+
+        allowed_roles = (
+            "CUSTOMER",
+            "BANK_OFFICER",
+            "BANK_ADMIN",
+            "SYSTEM_ADMIN",
+        )
+
+        if role not in allowed_roles:
+            from django.http import HttpResponseForbidden
+
+            return HttpResponseForbidden(
+                "You do not have permission to access Account Management."
+            )
+
+        return render(
+            request,
+            "transfers/account_management.html"
+        )
+    

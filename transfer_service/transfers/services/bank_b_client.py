@@ -74,3 +74,17 @@ class BankBClient:
 
         response.raise_for_status()
         return response.json()
+
+    def get_ledger_entries(self, params=None):
+        url = f"{self.base_url.rstrip('/')}/api/ledger/entries/"
+
+        response = requests.get(
+            url,
+            params=params or {},
+            headers=self.headers,
+            timeout=self.timeout
+        )
+
+        response.raise_for_status()
+
+        return response.json()

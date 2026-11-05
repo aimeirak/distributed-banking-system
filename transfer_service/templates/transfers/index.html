@@ -163,7 +163,7 @@
                     </a>
                 </div>
                 <div class="col-md-6 col-xl-3">
-                    <a href="/transfers/" class="quick-action">
+                    <a href="/transfers/history/page/" class="quick-action">
                         <span class="quick-action-icon"><i data-feather="list"></i></span>
                         <span><strong class="d-block">View Transfers</strong><small class="text-muted">Search and track transfers</small></span>
                     </a>
@@ -174,12 +174,14 @@
                         <span><strong class="d-block">Manage Accounts</strong><small class="text-muted">View bank accounts</small></span>
                     </a>
                 </div>
+                {% if user.is_authenticated and user.profile.role == "SYSTEM_ADMIN" %}
                 <div class="col-md-6 col-xl-3">
-                    <a href="/transfers/recovery/" class="quick-action">
+                    <a href="{% url 'recovery-monitoring-page' %}" class="quick-action">
                         <span class="quick-action-icon"><i data-feather="refresh-cw"></i></span>
-                        <span><strong class="d-block">Recovery Monitor</strong><small class="text-muted">Monitor Saga recovery</small></span>
+                        <span><strong class="d-block">Recovery Monitoring</strong><small class="text-muted">Monitor Saga recovery and retries</small></span>
                     </a>
                 </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -191,7 +193,7 @@
                 <h5 class="card-title mb-1">Recent Transfers</h5>
                 <div class="bank-section-subtitle">Latest inter-bank transfer activity</div>
             </div>
-            <a href="/transfers/" class="btn btn-sm btn-outline-primary mt-2 mt-md-0">View all transfers</a>
+            <a href="/transfers/history/page/" class="btn btn-sm btn-outline-primary mt-2 mt-md-0">View all transfers</a>
         </div>
         <div class="table-responsive">
             <table class="table table-hover my-0 bank-table">
@@ -208,7 +210,13 @@
                     {% for transfer in recent_transfers %}
                     <tr>
                         <td>
-                            <a href="/transfers/{{ transfer.id }}/" class="fw-semibold">
+                            <!-- <a href="/transfers/{{ transfer.id }}/" class="fw-semibold">
+                                {{ transfer.id }}
+                            </a> -->
+                            <a
+                                href="{% url 'all-transfers-page' %}?transfer_id={{ transfer.id }}"
+                                class="fw-semibold"
+                            >
                                 {{ transfer.id }}
                             </a>
                         </td>

@@ -12,6 +12,8 @@ from accounts.views import (
     CustomerBankAccountsAPIView,
 )
 
+from ledger.views import LedgerEntriesAPIView
+
 urlpatterns = [
     path('accounts/',BankAccountListCreateAPIView.as_view(),name='bank-account-list-create'),
     path('accounts/<uuid:account_id>/balance/',AccountBalanceAPIView.as_view(),name='account-balance'),
@@ -22,5 +24,5 @@ urlpatterns = [
     path("accounts/link-owner/",LinkAccountOwnershipAPIView.as_view(),name="link-account-owner"),
     path("internal/accounts/verify-ownership/",VerifyAccountOwnershipAPIView.as_view(), name="verify-account-ownership"),
     path('accounts/customer/<uuid:customer_id>/',CustomerBankAccountsAPIView.as_view(),name='customer-bank-accounts'),
-
+    path("ledger/entries/", LedgerEntriesAPIView.as_view(), name="ledger-entries"),
 ]

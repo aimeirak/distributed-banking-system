@@ -8,12 +8,83 @@
   const verify = $('verify-receiver');
   let accounts = [], receiver = null, busy = false, pendingKey = null;
   const token = () => sessionStorage.getItem('banking_access_token');
-  function alertMessage(message, type = 'danger') {
-    const box = $('transfer-alert');
-    box.className = `alert alert-${type}`;
-    box.textContent = message;
-  }
-  function clearAlert() { $('transfer-alert').className = 'alert d-none'; }
+ let alertTimer = null;
+function alertMessage(message, type = "success") {
+    const notification = $('transfer-notification');
+    const title = $('notification-title');
+    const messageElement = $('notification-message');
+    const icon = $('notification-icon');
+
+    if (!notification) {
+        console.error("Notification element not found.");
+        return;
+    }
+
+    if (alertTimer) {
+        clearTimeout(alertTimer);
+    }
+
+    const config = {
+        success: {
+            title: 'Success!',
+            icon: 'fa-check',
+            color: '#16a34a',
+            background: '#dcfce7'
+        },
+        danger: {
+            title: 'Something went wrong',
+            icon: 'fa-times',
+            color: '#dc2626',
+            background: '#fee2e2'
+        },
+        warning: {
+            title: 'Attention',
+            icon: 'fa-exclamation',
+            color: '#d97706',
+            background: '#fef3c7'
+        },
+        info: {
+            title: 'Information',
+            icon: 'fa-info',
+            color: '#2563eb',
+            background: '#dbeafe'
+        }
+    };
+
+    const selected = config[type] || config.info;
+
+    title.textContent = selected.title;
+    messageElement.textContent = message;
+
+    icon.innerHTML = `<i class="fas ${selected.icon}"></i>`;
+    icon.style.color = selected.color;
+    icon.style.background = selected.background;
+
+    notification.style.borderLeftColor = selected.color;
+
+    notification.classList.add('show');
+
+    alertTimer = setTimeout(() => {
+        closeTransferNotification();
+    }, 20000);
+}
+
+function closeTransferNotification() {
+    const notification = $('transfer-notification');
+
+    if (notification) {
+        notification.classList.remove('show');
+    }
+
+    if (alertTimer) {
+        clearTimeout(alertTimer);
+        alertTimer = null;
+    }
+}
+
+function clearAlert() {
+    closeTransferNotification();
+}
   function csrf() { return form.querySelector('[name=csrfmiddlewaretoken]')?.value || ''; }
   async function api(url, options = {}) {
     const headers = { Accept: 'application/json', 'X-CSRFToken': csrf(), ...(options.headers || {}) };
@@ -100,7 +171,20 @@
     try {
       const result = await api('/transfers/', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
       const id = result.id || result.transfer_id || result.transfer?.id;
-      alertMessage(`Transfer request accepted. Status: ${result.status || result.transfer?.status || 'Submitted'}${id ? `. Transfer ID: ${id}` : ''}.`, 'success');
+      // alertMessage(`Transfer request accepted. Status: ${result.status || result.transfer?.status || 'Submitted'}${id ? `. Transfer ID: ${id}` : ''}.`, 'success');
+      const status = result.status || result.transfer?.status || 'PENDING';
+
+        if (status === 'COMPLETED') {
+            alertMessage(
+                'Your transfer has been successfully completed.',
+                'success'
+            );
+        } else {
+            alertMessage(
+                'Your transfer request has been successfully submitted and is currently being processed. Please wait while we complete the transaction. You will be notified once the transfer is completed.',
+                'success'
+            );
+        }
       pendingKey = null;
       form.reset(); resetReceiver();
     } catch (err) {

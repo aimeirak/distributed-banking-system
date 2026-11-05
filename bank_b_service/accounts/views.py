@@ -6,6 +6,7 @@ from django.http import Http404
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from django.contrib.auth.decorators import login_required
 
 from accounts.models import BankAccount
 from accounts.serializers import (
@@ -188,3 +189,20 @@ class BankAccountLookupAPIView(APIView):
             "currency": account.currency,
             "status": account.status
         }, status=status.HTTP_200_OK)
+
+
+    @login_required(login_url="login")
+    def account_management_page(request):
+        """Render the Account Management page; data comes from existing bank APIs."""
+        try:
+            role = request.user.profile.role
+        except Exception:
+            role = None
+
+        if role not in ("CUSTOMER", "BANK_OFFICER", "BANK_ADMIN", "SYSTEM_ADMIN"):
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden(
+                "You do not have permission to access Account Management."
+            )
+        
+        return render(request, "transfers/account_management.html")

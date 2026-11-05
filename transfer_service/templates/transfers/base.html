@@ -146,6 +146,83 @@
                 margin-top: 10px;
             }
         }
+
+        #notification-container {
+    position: fixed;
+    top: 85px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 99999;
+    width: min(520px, calc(100% - 30px));
+    pointer-events: none;
+}
+
+.transfer-notification {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 20px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 8px 35px rgba(0, 0, 0, 0.16);
+    border-left: 5px solid #16a34a;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-20px);
+    transition: all 0.3s ease;
+    pointer-events: auto;
+}
+
+.transfer-notification.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.notification-icon {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #dcfce7;
+    color: #16a34a;
+    font-size: 19px;
+}
+
+.notification-content {
+    flex: 1;
+}
+
+.notification-content strong {
+    display: block;
+    font-size: 15px;
+    margin-bottom: 4px;
+    color: #1f2937;
+}
+
+.notification-content p {
+    margin: 0;
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+.notification-close {
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 23px;
+    cursor: pointer;
+}
+
+@media (max-width: 576px) {
+    #notification-container {
+        top: 75px;
+    }
+}
     </style>
 
     {% block extra_css %}{% endblock %}
@@ -189,7 +266,7 @@
 
                 <li class="sidebar-header">Money Transfers</li>
                 <li class="sidebar-item">
-                    <a class="sidebar-link" href="/transfers/">
+                    <a class="sidebar-link" href="/transfers/history/page/">
                         <i data-feather="arrow-left-right" class="align-middle"></i>
                         <span class="align-middle">All Transfers</span>
                     </a>
@@ -201,7 +278,7 @@
                     </a>
                 </li>
                 <li class="sidebar-item">
-                    <a class="sidebar-link" href="/transfers/recovery/">
+                    <a class="sidebar-link" href="/recovery-monitoring/">
                         <i data-feather="refresh-cw" class="align-middle"></i>
                         <span class="align-middle">Recovery Monitoring</span>
                     </a>

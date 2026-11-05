@@ -7,6 +7,7 @@ from accounts.views import (
     TransferStatusAPIView,
     BankAccountLookupAPIView
 )
+from ledger.views import LedgerEntriesAPIView
 
 urlpatterns = [
     path('accounts/',BankAccountListCreateAPIView.as_view(),name='bank-account-list-create'),
@@ -14,4 +15,5 @@ urlpatterns = [
     path('transfers/credit/',CreditAccountAPIView.as_view(),name='credit-account'),
     path('transfers/<uuid:transfer_id>/status/',TransferStatusAPIView.as_view(),name='transfer-status'),
     path('accounts/lookup/',BankAccountLookupAPIView.as_view(),name='bank-account-lookup'),
+    path("ledger/entries/",LedgerEntriesAPIView.as_view(),name="ledger-entries"),
 ]
