@@ -13,8 +13,15 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 import os
 
+from dotenv import load_dotenv
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+load_dotenv(BASE_DIR / ".env")
 
 
 # Quick-start development settings - unsuitable for production
@@ -86,14 +93,27 @@ WSGI_APPLICATION = "config.wsgi.application"
 #     }
 # }
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'transfers_db',
+#         'USER': 'postgres',
+#         'PASSWORD': 'Admin@123',
+#         'HOST': 'localhost',
+#         'PORT': '5432',
+#     }
+# }
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
+        'ENGINE': 'django.db.backends.mysql',
         'NAME': 'transfers_db',
-        'USER': 'postgres',
+        'USER': 'root',
         'PASSWORD': 'Admin@123',
         'HOST': 'localhost',
-        'PORT': '5432',
+        'PORT': '3306',
+        'OPTIONS': {
+            'charset': 'utf8mb4',
+        },
     }
 }
 
@@ -175,3 +195,31 @@ CELERY_ENABLE_UTC = True
 CELERY_TASK_TRACK_STARTED = True
 
 CELERY_TASK_IGNORE_RESULT = True
+
+# REST API security: JWT authentication is required by default.
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ROTATE_REFRESH_TOKENS": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
+BANK_A_INTERNAL_SERVICE_TOKEN = os.getenv(
+    "BANK_A_INTERNAL_SERVICE_TOKEN",
+    ""
+)
+
+BANK_B_INTERNAL_SERVICE_TOKEN = os.getenv(
+    "BANK_B_INTERNAL_SERVICE_TOKEN",
+    ""
+)

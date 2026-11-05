@@ -3,18 +3,22 @@ from django.db import transaction, IntegrityError
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
-from transfers.models import Transfer
-from transfers.serializers import TransferCreateSerializer
+from transfers.models import Transfer, UserProfile
+from transfers.serializers import CustomerRegistrationSerializer, TransferCreateSerializer
 from transfers.services.saga_orchestrator import SagaOrchestrator
 
 from transfers.services.recovery_service import TransferRecoveryService
-
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from .permissions import IsCustomer, IsSystemAdmin
 
 class TransferCreateAPIView(APIView):
+    # Temporary safe default: account ownership checks are not yet implemented.
+    # permission_classes = [IsAdminUser]
+    permission_classes = [IsCustomer]
 
     def post(self, request):
-
         serializer = TransferCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -29,6 +33,7 @@ class TransferCreateAPIView(APIView):
             "destination_account_number": data["destination_account_number"],
             "amount": data["amount"],
             "currency": data["currency"],
+             "created_by": request.user,
         }
 
         try:
@@ -48,6 +53,11 @@ class TransferCreateAPIView(APIView):
             created = False
 
         if not created:
+            if transfer.created_by_id != request.user.id:
+                return Response(
+                    {"message": "Transfer not found."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
             # Do not allow an existing idempotency key
             # to be reused for a different transaction.
@@ -99,6 +109,7 @@ class TransferCreateAPIView(APIView):
 
 
 class TransferDetailAPIView(APIView):
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, transfer_id):
 
@@ -111,6 +122,17 @@ class TransferDetailAPIView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
+        # Check whether the user is allowed to view this transfer
+        if (
+            not request.user.is_staff
+            and transfer.created_by_id != request.user.id
+        ):
+            return Response(
+                {"message": "Transfer not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Serialize transfer details
         serializer = TransferCreateSerializer(transfer)
 
         steps = transfer.steps.all().values(
@@ -129,6 +151,9 @@ class TransferDetailAPIView(APIView):
         })
 
 class TransferRecoveryAPIView(APIView):
+    # Recovery inspection and execution are restricted to staff users.
+    permission_classes = [IsSystemAdmin]
+
 
     def get(self, request, transfer_id):
         try:
@@ -173,3 +198,52 @@ class TransferRecoveryAPIView(APIView):
                 "message": "Unable to recover transfer.",
                 "error": str(exc)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CustomerRegistrationAPIView(APIView):
+    permission_classes = [AllowAny]
+    @transaction.atomic
+    def post(self, request):
+        serializer = CustomerRegistrationSerializer( data=request.data)
+
+        if serializer.is_valid():
+            user = serializer.save()
+
+            profile = user.profile
+
+            return Response(
+                {
+                    "message": "Customer registered successfully.",
+                    "customer": {
+                        "user_id": user.id,
+                        "customer_id": str(profile.customer_id),
+                        "username": user.username,
+                        "email": user.email,
+                        "role": profile.role,
+                    }
+                },
+                status=status.HTTP_201_CREATED
+            )
+
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+class CustomerProfileAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        profile, created = UserProfile.objects.get_or_create(
+            user=request.user
+        )
+
+        return Response({
+            "user_id": request.user.id,
+            "customer_id": str(profile.customer_id),
+            "username": request.user.username,
+            "email": request.user.email,
+            "role": profile.role,
+            "phone_number": profile.phone_number,
+        })

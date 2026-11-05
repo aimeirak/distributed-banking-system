@@ -3,10 +3,12 @@ from django.urls import path
 from accounts.views import (
     BankAccountListCreateAPIView,
     AccountBalanceAPIView,
+    LinkAccountOwnershipAPIView,
     ReserveFundsAPIView,
     CommitReservationAPIView,
     ReleaseReservationAPIView,
-    TransferStatusAPIView
+    TransferStatusAPIView,
+    VerifyAccountOwnershipAPIView
 )
 
 urlpatterns = [
@@ -16,4 +18,6 @@ urlpatterns = [
     path('transfers/commit/',CommitReservationAPIView.as_view(),name='commit-reservation'),
     path('transfers/release/',ReleaseReservationAPIView.as_view(),name='release-reservation'),
     path('transfers/<uuid:transfer_id>/status/',TransferStatusAPIView.as_view(),name='transfer-status'),
+    path("accounts/link-owner/",LinkAccountOwnershipAPIView.as_view(),name="link-account-owner"),
+    path("internal/accounts/verify-ownership/",VerifyAccountOwnershipAPIView.as_view(), name="verify-account-ownership"),
 ]

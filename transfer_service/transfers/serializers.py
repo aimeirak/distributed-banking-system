@@ -4,6 +4,10 @@ from rest_framework import serializers
 
 from transfers.models import Transfer
 
+from django.contrib.auth.models import User
+from rest_framework import serializers
+from transfers.models import UserProfile
+
 
 class TransferCreateSerializer(serializers.ModelSerializer):
 
@@ -53,3 +57,38 @@ class TransferCreateSerializer(serializers.ModelSerializer):
             )
 
         return attrs
+
+class CustomerRegistrationSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(
+        write_only=True,
+        min_length=8
+    )
+
+    phone_number = serializers.CharField(
+        required=False,
+        allow_blank=True
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "email",
+            "password",
+            "phone_number",
+        ]
+        read_only_fields = ["id"]
+
+    def create(self, validated_data):
+        phone_number = validated_data.pop("phone_number", "")
+
+        user = User.objects.create_user(**validated_data)
+
+        UserProfile.objects.create(
+            user=user,
+            role=UserProfile.Role.CUSTOMER,
+            phone_number=phone_number
+        )
+
+        return user  

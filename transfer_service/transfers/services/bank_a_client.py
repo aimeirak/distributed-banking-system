@@ -5,8 +5,27 @@ from django.conf import settings
 class BankAClient:
 
     def __init__(self):
-        self.base_url = settings.BANK_A_BASE_URL
+        self.base_url = settings.BANK_A_BASE_URL.rstrip("/")
         self.timeout = settings.BANK_REQUEST_TIMEOUT
+        self.headers = {
+            "X-Service-Token": settings.BANK_A_INTERNAL_SERVICE_TOKEN
+        }
+
+    def verify_account_ownership(self, account_id, customer_id):
+        url = f"{self.base_url}/api/internal/accounts/verify-ownership/"
+
+        response = requests.post(
+            url,
+            json={
+                "account_id": str(account_id),
+                "customer_id": str(customer_id)
+            },
+            headers=self.headers,
+            timeout=self.timeout
+        )
+
+        response.raise_for_status()
+        return response.json()
 
     def reserve_funds(self, account_id, transfer_id, amount):
         url = f"{self.base_url}/api/transfers/reserve/"
@@ -16,8 +35,9 @@ class BankAClient:
             json={
                 "account_id": str(account_id),
                 "transfer_id": str(transfer_id),
-                "amount": str(amount),
+                "amount": str(amount)
             },
+            headers=self.headers,
             timeout=self.timeout
         )
 
@@ -29,9 +49,8 @@ class BankAClient:
 
         response = requests.post(
             url,
-            json={
-                "transfer_id": str(transfer_id)
-            },
+            json={"transfer_id": str(transfer_id)},
+            headers=self.headers,
             timeout=self.timeout
         )
 
@@ -43,9 +62,8 @@ class BankAClient:
 
         response = requests.post(
             url,
-            json={
-                "transfer_id": str(transfer_id)
-            },
+            json={"transfer_id": str(transfer_id)},
+            headers=self.headers,
             timeout=self.timeout
         )
 
@@ -57,6 +75,7 @@ class BankAClient:
 
         response = requests.get(
             url,
+            headers=self.headers,
             timeout=self.timeout
         )
 
@@ -64,5 +83,4 @@ class BankAClient:
             return None
 
         response.raise_for_status()
-
         return response.json()["data"]

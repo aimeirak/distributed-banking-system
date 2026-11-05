@@ -8,6 +8,10 @@ class BankBClient:
         self.base_url = settings.BANK_B_BASE_URL
         self.timeout = settings.BANK_REQUEST_TIMEOUT
 
+        self.headers = {
+            "X-Service-Token": settings.BANK_B_INTERNAL_SERVICE_TOKEN
+        }
+
     def credit_account(self, account_id, transfer_id, amount):
         url = f"{self.base_url}/api/transfers/credit/"
 
@@ -18,6 +22,7 @@ class BankBClient:
                 "transfer_id": str(transfer_id),
                 "amount": str(amount),
             },
+            headers=self.headers,
             timeout=self.timeout
         )
 
@@ -29,6 +34,7 @@ class BankBClient:
 
         response = requests.get(
             url,
+            headers=self.headers,
             timeout=self.timeout
         )
 

@@ -20,8 +20,15 @@ from accounts.services import (
     get_transfer_status
 )
 
+from accounts.permissions import (
+    IsInternalService,
+    IsAccountAdministrator
+)
+
 
 class BankAccountListCreateAPIView(APIView):
+
+    permission_classes = [IsAccountAdministrator]
 
     def get(self, request):
         accounts = BankAccount.objects.all()
@@ -63,6 +70,8 @@ class BankAccountListCreateAPIView(APIView):
 
 class AccountBalanceAPIView(APIView):
 
+    permission_classes = [IsInternalService]
+
     def get(self, request, account_id):
         try:
             balance = get_account_balance(account_id)
@@ -76,6 +85,8 @@ class AccountBalanceAPIView(APIView):
 
 
 class CreditAccountAPIView(APIView):
+
+    permission_classes = [IsInternalService]
 
     def post(self, request):
         serializer = CreditAccountSerializer(data=request.data)
@@ -112,7 +123,7 @@ class CreditAccountAPIView(APIView):
             )
 
 class TransferStatusAPIView(APIView):
-
+    permission_classes = [IsInternalService]
     def get(self, request, transfer_id):
 
         try:
