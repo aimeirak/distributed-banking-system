@@ -5,6 +5,9 @@ from django.shortcuts import render, redirect
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
+from django.db import transaction
+from transfers.serializers import CustomerRegistrationSerializer
+
 
 # These are the roles currently supported by UserProfile.
 # Keep this list aligned with UserProfile.Role in transfers/models.py.
@@ -101,3 +104,29 @@ def logout_page(request):
     logout(request)
     messages.success(request, "You have successfully logged out.")
     return redirect("login")
+
+def register_page(request):
+
+    if request.method == "POST":
+        serializer = CustomerRegistrationSerializer(data=request.POST)
+
+        if serializer.is_valid():
+            with transaction.atomic():
+                user = serializer.save()
+
+            # Automatically log in only if the visitor is not already logged in.
+            if not request.user.is_authenticated:
+                login(request, user)
+
+            messages.success(
+                request,
+                "Customer registered successfully."
+            )
+
+            return redirect("dashboard")
+
+        for field, errors in serializer.errors.items():
+            for error in errors:
+                messages.error(request, f"{field}: {error}")
+
+    return render(request, "auth/register.html")

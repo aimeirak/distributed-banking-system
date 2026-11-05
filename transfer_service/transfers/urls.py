@@ -15,7 +15,6 @@ from transfers.views import (
     CustomerTransferListAPIView,
     AccountManagementAPIView
 )
-
 from transfers.recovery_views import (
     RecoveryMonitoringAPIView,
     RecoveryMonitoringDetailAPIView,
@@ -27,7 +26,7 @@ from transfers.transaction_ledger_views import (
     transaction_ledger_page,
 )
 from transfers import views
-from transfers.auth_views import login_page, logout_page
+from transfers.auth_views import login_page, logout_page,register_page
 
 
 urlpatterns = [
@@ -52,4 +51,5 @@ urlpatterns = [
     path("recovery/monitoring/api/<uuid:transfer_id>/",RecoveryMonitoringDetailAPIView.as_view(),name="recovery-monitoring-detail-api"),
     path("transactions/", transaction_ledger_page, name="transaction-ledger-page"),
     path("transactions/api/", TransactionLedgerAPIView.as_view(), name="transaction-ledger-api"),
+    path("register/", register_page, name="register"),
 ]
