@@ -67,7 +67,7 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -223,3 +223,7 @@ BANK_B_INTERNAL_SERVICE_TOKEN = os.getenv(
     "BANK_B_INTERNAL_SERVICE_TOKEN",
     ""
 )
+
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]

@@ -13,6 +13,8 @@ from transfers.services.recovery_service import TransferRecoveryService
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from .permissions import IsCustomer, IsSystemAdmin
 
+from django.shortcuts import render
+
 class TransferCreateAPIView(APIView):
     # Temporary safe default: account ownership checks are not yet implemented.
     # permission_classes = [IsAdminUser]
@@ -247,3 +249,27 @@ class CustomerProfileAPIView(APIView):
             "role": profile.role,
             "phone_number": profile.phone_number,
         })
+
+def dashboard(request):
+
+    context = {
+        "total_transfers": Transfer.objects.count(),
+
+        "completed_transfers": Transfer.objects.filter(
+            status=Transfer.TransferStatus.COMPLETED
+        ).count(),
+
+        "pending_transfers": Transfer.objects.filter(
+            status=Transfer.TransferStatus.PENDING
+        ).count(),
+
+        "review_transfers": Transfer.objects.filter(
+            status=Transfer.TransferStatus.REQUIRES_REVIEW
+        ).count(),
+    }
+
+    return render(
+        request,
+        "transfers/index.html",
+        context
+    )

@@ -1,0 +1,226 @@
+{% extends "transfers/base.html" %}
+{% load static %}
+
+{% block title %}Banking Dashboard | Distributed Banking{% endblock %}
+{% block page_title %}
+<div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
+    <div>
+        <h1 class="h3 mb-1">Banking Dashboard</h1>
+        <p class="text-muted mb-0">Overview of inter-bank transfers and recovery activity.</p>
+    </div>
+    <a href="/transfers/create/" class="btn btn-primary mt-2 mt-md-0">
+        <i data-feather="plus" class="me-1"></i> New Transfer
+    </a>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+<style>
+    .bank-stat-card { min-height: 132px; }
+    .bank-stat-label { color: #8492a6; font-size: .82rem; }
+    .bank-stat-value { font-size: 1.85rem; font-weight: 650; color: #172b4d; }
+    .bank-stat-icon {
+        width: 42px; height: 42px; border-radius: 12px;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: #eff6ff; color: #2563eb;
+    }
+    .bank-section-subtitle { color: #8492a6; font-size: .82rem; }
+    .bank-table th { font-size: .76rem; text-transform: uppercase; white-space: nowrap; }
+    .bank-table td { font-size: .84rem; vertical-align: middle; }
+    .bank-empty { text-align: center; padding: 2rem; color: #8492a6; }
+    .quick-action {
+        display: flex; align-items: center; gap: 12px; padding: 14px;
+        border: 1px solid #e8edf3; border-radius: 10px; color: inherit;
+        text-decoration: none; height: 100%; transition: .2s ease;
+    }
+    .quick-action:hover { border-color: #2563eb; background: #f8fbff; }
+    .quick-action-icon {
+        width: 40px; height: 40px; display: inline-flex; align-items: center;
+        justify-content: center; border-radius: 10px; background: #eff6ff;
+        color: #2563eb; flex-shrink: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+
+    <!-- Transfer summary cards -->
+    <div class="row">
+        <div class="col-sm-6 col-xl-3">
+            <div class="card bank-stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="bank-stat-label">Total Transfers</span>
+                        <span class="bank-stat-icon"><i data-feather="repeat"></i></span>
+                    </div>
+                    <div class="bank-stat-value mt-2">{{ total_transfers|default:0 }}</div>
+                    <div class="bank-stat-label">All transfer requests</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+            <div class="card bank-stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="bank-stat-label">Completed</span>
+                        <span class="bank-stat-icon text-success bg-light"><i data-feather="check-circle"></i></span>
+                    </div>
+                    <div class="bank-stat-value mt-2 text-success">{{ completed_transfers|default:0 }}</div>
+                    <div class="bank-stat-label">Successfully settled transfers</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+            <div class="card bank-stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="bank-stat-label">Pending / Processing</span>
+                        <span class="bank-stat-icon"><i data-feather="clock"></i></span>
+                    </div>
+                    <div class="bank-stat-value mt-2 text-warning">{{ pending_transfers|default:0 }}</div>
+                    <div class="bank-stat-label">Transfers not yet completed</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+            <div class="card bank-stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="bank-stat-label">Requires Review</span>
+                        <span class="bank-stat-icon text-danger bg-light"><i data-feather="alert-triangle"></i></span>
+                    </div>
+                    <div class="bank-stat-value mt-2 text-danger">{{ review_transfers|default:0 }}</div>
+                    <div class="bank-stat-label">Transfers needing attention</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-1">Quick Actions</h5>
+            <div class="bank-section-subtitle">Common banking operations</div>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6 col-xl-3">
+                    <a href="/transfers/create/" class="quick-action">
+                        <span class="quick-action-icon"><i data-feather="send"></i></span>
+                        <span><strong class="d-block">Initiate Transfer</strong><small class="text-muted">Send money between banks</small></span>
+                    </a>
+                </div>
+                <div class="col-md-6 col-xl-3">
+                    <a href="/transfers/" class="quick-action">
+                        <span class="quick-action-icon"><i data-feather="list"></i></span>
+                        <span><strong class="d-block">View Transfers</strong><small class="text-muted">Search and track transfers</small></span>
+                    </a>
+                </div>
+                <div class="col-md-6 col-xl-3">
+                    <a href="/accounts/" class="quick-action">
+                        <span class="quick-action-icon"><i data-feather="credit-card"></i></span>
+                        <span><strong class="d-block">Manage Accounts</strong><small class="text-muted">View bank accounts</small></span>
+                    </a>
+                </div>
+                <div class="col-md-6 col-xl-3">
+                    <a href="/transfers/recovery/" class="quick-action">
+                        <span class="quick-action-icon"><i data-feather="refresh-cw"></i></span>
+                        <span><strong class="d-block">Recovery Monitor</strong><small class="text-muted">Monitor Saga recovery</small></span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent transfers -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h5 class="card-title mb-1">Recent Transfers</h5>
+                <div class="bank-section-subtitle">Latest inter-bank transfer activity</div>
+            </div>
+            <a href="/transfers/" class="btn btn-sm btn-outline-primary mt-2 mt-md-0">View all transfers</a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover my-0 bank-table">
+                <thead>
+                    <tr>
+                        <th>Transfer Reference</th>
+                        <th>Amount</th>
+                        <th>Currency</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for transfer in recent_transfers %}
+                    <tr>
+                        <td>
+                            <a href="/transfers/{{ transfer.id }}/" class="fw-semibold">
+                                {{ transfer.id }}
+                            </a>
+                        </td>
+                        <td>{{ transfer.amount|default:"—" }}</td>
+                        <td>{{ transfer.currency|default:"—" }}</td>
+                        <td>
+                            {% if transfer.status == "COMPLETED" %}
+                                <span class="badge bg-success">Completed</span>
+                            {% elif transfer.status == "FAILED" %}
+                                <span class="badge bg-danger">Failed</span>
+                            {% elif transfer.status == "REQUIRES_REVIEW" %}
+                                <span class="badge bg-warning text-dark">Requires Review</span>
+                            {% else %}
+                                <span class="badge bg-info">{{ transfer.get_status_display|default:transfer.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ transfer.created_at|date:"d M Y H:i"|default:"—" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="bank-empty">No transfers have been recorded yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Distributed services overview -->
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <span class="bank-stat-icon me-3"><i data-feather="server"></i></span>
+                        <div><h5 class="mb-1">Bank A Service</h5><small class="text-muted">Source accounts and reservations</small></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <span class="bank-stat-icon me-3"><i data-feather="server"></i></span>
+                        <div><h5 class="mb-1">Bank B Service</h5><small class="text-muted">Receiver accounts and credits</small></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <span class="bank-stat-icon me-3"><i data-feather="git-merge"></i></span>
+                        <div><h5 class="mb-1">Transfer Coordinator</h5><small class="text-muted">Saga orchestration and recovery</small></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

@@ -11,6 +11,7 @@ from transfers.views import (
     CustomerRegistrationAPIView,
     CustomerProfileAPIView,
 )
+from . import views
 
 urlpatterns = [
     path("auth/register/", CustomerRegistrationAPIView.as_view(), name="customer-register"),
@@ -26,4 +27,5 @@ urlpatterns = [
     path("transfers/<uuid:transfer_id>/",TransferDetailAPIView.as_view(),name="transfer-detail"),
 
     path("transfers/<uuid:transfer_id>/recovery/",TransferRecoveryAPIView.as_view(),name="transfer-recovery"),
+    path("", views.dashboard, name="dashboard"),
 ]

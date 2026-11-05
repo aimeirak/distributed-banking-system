@@ -1,0 +1,416 @@
+
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Distributed Banking and Money Transfer System">
+
+    <title>{% block title %}Distributed Banking System{% endblock %}</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+          rel="stylesheet">
+    <link href="{% static 'css/app.css' %}" rel="stylesheet">
+
+    <style>
+        :root {
+            --bank-blue: #2563eb;
+            --bank-blue-light: #eff6ff;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .sidebar-brand {
+            font-weight: 700;
+            letter-spacing: .3px;
+        }
+
+        .sidebar-header {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .sidebar-link {
+            transition: background .2s ease, color .2s ease;
+        }
+
+        .sidebar-link:hover {
+            color: #fff !important;
+        }
+
+        .content {
+            min-height: calc(100vh - 130px);
+        }
+
+        #message-popup-container {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 99999;
+            width: min(440px, calc(100% - 32px));
+        }
+
+        .message-popup {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 18px;
+            margin-bottom: 10px;
+            background: #fff;
+            border: 1px solid #d9e2ec;
+            border-top: 4px solid var(--bank-blue);
+            border-radius: 12px;
+            box-shadow: 0 10px 35px rgba(0, 0, 0, .15);
+            animation: popupAppear .25s ease-out;
+            transition: opacity .4s ease, transform .4s ease;
+        }
+
+        .message-popup.error {
+            border-top-color: #dc3545;
+        }
+
+        .message-popup.warning {
+            border-top-color: #ffc107;
+        }
+
+        .message-popup.info {
+            border-top-color: #0d6efd;
+        }
+
+        .message-popup.fade-out {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+
+        .message-popup-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: var(--bank-blue-light);
+            color: var(--bank-blue);
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .message-popup-content {
+            flex: 1;
+            color: #495057;
+            overflow-wrap: anywhere;
+        }
+
+        .message-popup-content strong {
+            display: block;
+            color: var(--bank-blue);
+            margin-bottom: 3px;
+        }
+
+        .message-popup-close {
+            align-self: flex-start;
+            border: 0;
+            background: transparent;
+            color: #6c757d;
+            font-size: 24px;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        @keyframes popupAppear {
+            from {
+                opacity: 0;
+                transform: translateY(-8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 576px) {
+            .content {
+                padding: 16px !important;
+            }
+
+            .footer .text-end {
+                text-align: left !important;
+                margin-top: 10px;
+            }
+        }
+    </style>
+
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+<div class="wrapper">
+
+    <!-- Sidebar -->
+    <nav id="sidebar" class="sidebar js-sidebar">
+        <div class="sidebar-content js-simplebar">
+
+            <a class="sidebar-brand" href="/">
+                <i data-feather="landmark" class="me-2"></i>
+                <span class="align-middle">Distributed Banking</span>
+            </a>
+
+            <ul class="sidebar-nav">
+
+                <li class="sidebar-header">Overview</li>
+                <li class="sidebar-item">
+                    <a class="sidebar-link" href="/">
+                        <i data-feather="home" class="align-middle"></i>
+                        <span class="align-middle">Dashboard</span>
+                    </a>
+                </li>
+
+                <li class="sidebar-header">Banking</li>
+                <li class="sidebar-item">
+                    <a class="sidebar-link" href="/banks/">
+                        <i data-feather="landmark" class="align-middle"></i>
+                        <span class="align-middle">Banks</span>
+                    </a>
+                </li>
+                <li class="sidebar-item">
+                    <a class="sidebar-link" href="/accounts/">
+                        <i data-feather="credit-card" class="align-middle"></i>
+                        <span class="align-middle">Accounts</span>
+                    </a>
+                </li>
+
+                <li class="sidebar-header">Money Transfers</li>
+                <li class="sidebar-item">
+                    <a class="sidebar-link" href="/transfers/">
+                        <i data-feather="arrow-left-right" class="align-middle"></i>
+                        <span class="align-middle">All Transfers</span>
+                    </a>
+                </li>
+                <li class="sidebar-item">
+                    <a class="sidebar-link" href="/transfers/create/">
+                        <i data-feather="plus-circle" class="align-middle"></i>
+                        <span class="align-middle">New Transfer</span>
+                    </a>
+                </li>
+                <li class="sidebar-item">
+                    <a class="sidebar-link" href="/transfers/recovery/">
+                        <i data-feather="refresh-cw" class="align-middle"></i>
+                        <span class="align-middle">Recovery Monitoring</span>
+                    </a>
+                </li>
+                <li class="sidebar-item">
+                    <a class="sidebar-link" href="/transactions/">
+                        <i data-feather="list" class="align-middle"></i>
+                        <span class="align-middle">Transaction Ledger</span>
+                    </a>
+                </li>
+
+                <li class="sidebar-header">System</li>
+                <li class="sidebar-item">
+                    <a class="sidebar-link" href="/admin/">
+                        <i data-feather="settings" class="align-middle"></i>
+                        <span class="align-middle">Administration</span>
+                    </a>
+                </li>
+
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main section -->
+    <div class="main">
+
+        <!-- Top navigation -->
+        <nav class="navbar navbar-expand navbar-light navbar-bg">
+
+            <a class="sidebar-toggle js-sidebar-toggle"
+               href="javascript:void(0)"
+               aria-label="Toggle sidebar">
+                <i class="hamburger align-self-center"></i>
+            </a>
+
+            <div class="navbar-collapse collapse">
+                <ul class="navbar-nav navbar-align">
+
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center"
+                           href="#"
+                           data-bs-toggle="dropdown"
+                           aria-expanded="false">
+
+							<span class="avatar bg-light rounded-circle me-1
+										d-inline-flex align-items-center justify-content-center"
+								style="width: 32px; height: 32px;">
+								<i data-feather="user"></i>
+							</span>
+
+                            <span class="text-dark">
+                                {% if request.user.is_authenticated %}
+                                    {{ request.user.username }}
+                                {% else %}
+                                    Guest
+                                {% endif %}
+                            </span>
+                        </a>
+
+                        <div class="dropdown-menu dropdown-menu-end">
+                            {% if request.user.is_authenticated %}
+                                <a class="dropdown-item" href="/admin/">
+                                    <i data-feather="user" class="me-2"></i>
+                                    Administration
+                                </a>
+
+                                <div class="dropdown-divider"></div>
+
+                                <form method="post" action="/admin/logout/">
+                                    {% csrf_token %}
+                                    <button type="submit" class="dropdown-item">
+                                        <i data-feather="log-out" class="me-2"></i>
+                                        Log out
+                                    </button>
+                                </form>
+                            {% else %}
+                                <a class="dropdown-item" href="/admin/login/">
+                                    <i data-feather="log-in" class="me-2"></i>
+                                    Log in
+                                </a>
+                            {% endif %}
+                        </div>
+                    </li>
+
+                </ul>
+            </div>
+        </nav>
+
+        <!-- Page content -->
+        <main class="content">
+            <div class="container-fluid p-0">
+
+                {% block page_title %}{% endblock %}
+
+                <!-- Django messages -->
+                {% if messages %}
+                    <div id="message-popup-container" aria-live="polite">
+                        {% for message in messages %}
+                            <div class="message-popup {{ message.tags|default:'info' }}"
+                                 role="status">
+
+                                <div class="message-popup-icon">
+                                    {% if 'error' in message.tags %}
+                                        !
+                                    {% elif 'warning' in message.tags %}
+                                        !
+                                    {% else %}
+                                        ✓
+                                    {% endif %}
+                                </div>
+
+                                <div class="message-popup-content">
+                                    <strong>
+                                        {% if 'success' in message.tags %}
+                                            Success
+                                        {% elif 'error' in message.tags %}
+                                            Error
+                                        {% elif 'warning' in message.tags %}
+                                            Warning
+                                        {% else %}
+                                            Notice
+                                        {% endif %}
+                                    </strong>
+
+                                    <div>{{ message }}</div>
+                                </div>
+
+                                <button type="button"
+                                        class="message-popup-close"
+                                        aria-label="Close notification">
+                                    &times;
+                                </button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                {% block content %}{% endblock %}
+
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="container-fluid">
+                <div class="row text-muted">
+
+                    <div class="col-md-6 text-start">
+                        <p class="mb-0">
+                            <strong>Distributed Banking System</strong>
+                            &copy; {% now "Y" %}
+                        </p>
+                        <small>Distributed banking and inter-bank money transfers</small>
+                    </div>
+
+                    <div class="col-md-6 text-end">
+                        <span class="me-2">Banking Platform</span>
+                        <a href="/admin/" class="text-muted">
+                            Administration
+                        </a>
+                    </div>
+
+                </div>
+            </div>
+        </footer>
+
+    </div>
+</div>
+
+<script src="{% static 'js/app.js' %}"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".message-popup").forEach(function (popup) {
+        let closeTimer;
+
+        function closePopup() {
+            if (!popup.isConnected) return;
+
+            popup.classList.add("fade-out");
+
+            window.setTimeout(function () {
+                popup.remove();
+
+                const container = document.getElementById(
+                    "message-popup-container"
+                );
+
+                if (container && !container.querySelector(".message-popup")) {
+                    container.remove();
+                }
+            }, 400);
+        }
+
+        const closeButton = popup.querySelector(".message-popup-close");
+
+        if (closeButton) {
+            closeButton.addEventListener("click", function () {
+                window.clearTimeout(closeTimer);
+                closePopup();
+            });
+        }
+
+        closeTimer = window.setTimeout(closePopup, 10000);
+    });
+});
+</script>
+
+{% block extra_js %}{% endblock %}
+
+</body>
+</html>
