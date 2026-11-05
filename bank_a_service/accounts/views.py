@@ -4,6 +4,16 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
+from accounts.serializers import LinkAccountOwnershipSerializer
+from accounts.services import link_account_to_customer
+from rest_framework.permissions import IsAdminUser
+from accounts.permissions import (
+    IsInternalService,
+    IsAccountAdministrator
+)
+from accounts.serializers import VerifyAccountOwnershipSerializer
+from accounts.services import verify_account_ownership
+
 from accounts.models import BankAccount
 from accounts.serializers import (
     BankAccountSerializer,
@@ -22,7 +32,7 @@ from accounts.services import (
 
 
 class BankAccountListCreateAPIView(APIView):
-
+    permission_classes = [IsInternalService]
     def get(self, request):
         accounts = BankAccount.objects.all()
         serializer = BankAccountSerializer(accounts, many=True)
@@ -56,6 +66,7 @@ class BankAccountListCreateAPIView(APIView):
 
 
 class AccountBalanceAPIView(APIView):
+    permission_classes = [IsInternalService]
 
     def get(self, request, account_id):
         try:
@@ -74,7 +85,7 @@ class AccountBalanceAPIView(APIView):
 
 
 class ReserveFundsAPIView(APIView):
-
+    permission_classes = [IsInternalService]
     def post(self, request):
         serializer = ReserveFundsSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -102,7 +113,7 @@ class ReserveFundsAPIView(APIView):
 
 
 class CommitReservationAPIView(APIView):
-
+    permission_classes = [IsInternalService]
     def post(self, request):
         serializer = TransferActionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -126,7 +137,7 @@ class CommitReservationAPIView(APIView):
 
 
 class ReleaseReservationAPIView(APIView):
-
+    permission_classes = [IsInternalService]
     def post(self, request):
         serializer = TransferActionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -149,7 +160,7 @@ class ReleaseReservationAPIView(APIView):
             )
 
 class TransferStatusAPIView(APIView):
-
+    permission_classes = [IsInternalService]
     def get(self, request, transfer_id):
 
         try:
@@ -176,3 +187,73 @@ class TransferStatusAPIView(APIView):
                 )
 
             raise
+
+
+class LinkAccountOwnershipAPIView(APIView):
+    permission_classes = [IsAccountAdministrator]
+    def post(self, request):
+        serializer = LinkAccountOwnershipSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            account = link_account_to_customer(
+                account_id=serializer.validated_data["account_id"],
+                customer_id=serializer.validated_data["customer_id"]
+            )
+
+            return Response({
+                "message": "Account linked successfully.",
+                "account_id": str(account.id),
+                "account_number": account.account_number,
+                "owner_customer_id": str(account.owner_customer_id)
+            }, status=status.HTTP_200_OK)
+
+        except DjangoValidationError as exc:
+            return Response(
+                {"error": exc.messages},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+class VerifyAccountOwnershipAPIView(APIView):
+    permission_classes = [IsInternalService]
+
+    def post(self, request):
+        serializer = VerifyAccountOwnershipSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            account = verify_account_ownership(
+                account_id=serializer.validated_data["account_id"],
+                customer_id=serializer.validated_data["customer_id"]
+            )
+
+            return Response({
+                "verified": True,
+                "account_id": str(account.id),
+                "account_number": account.account_number,
+                "customer_id": str(account.owner_customer_id),
+                "currency": account.currency
+            })
+
+        except DjangoValidationError as exc:
+            return Response(
+                {
+                    "verified": False,
+                    "message": exc.messages
+                },
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+class CustomerBankAccountsAPIView(APIView):
+    permission_classes = [IsInternalService]
+
+    def get(self, request, customer_id):
+        accounts = BankAccount.objects.filter(
+            owner_customer_id=customer_id,
+            status=BankAccount.AccountStatus.ACTIVE
+        )
+
+        serializer = BankAccountSerializer(accounts, many=True)
+
+        return Response(serializer.data, status=status.HTTP_200_OK)

@@ -1,0 +1,44 @@
+{% extends "transfers/base.html" %}
+{% load static %}
+{% block title %}Transaction Ledger{% endblock %}
+{% block content %}
+<div class="container-fluid p-0">
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div><h1 class="h3 mb-1">Transaction Ledger</h1><p class="text-muted mb-0">Consolidated, read-only entries from Bank A and Bank B.</p></div>
+    <button class="btn btn-outline-primary" id="exportCsv"><i data-feather="download"></i> Export CSV</button>
+  </div>
+
+  <div id="ledgerError" class="alert alert-warning d-none"></div>
+  <div class="row">
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted">Reservations</div><h3 id="sumReservation">0.00</h3></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted">Debits</div><h3 id="sumDebit">0.00</h3></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted">Credits</div><h3 id="sumCredit">0.00</h3></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted">Released</div><h3 id="sumRelease">0.00</h3></div></div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <form id="filterForm" class="row g-2 mb-3">
+        <div class="col-lg-2"><select class="form-select" name="bank"><option value="ALL">All banks</option><option value="BANK_A">Bank A</option><option value="BANK_B">Bank B</option></select></div>
+        <div class="col-lg-2"><select class="form-select" name="entry_type"><option value="">All entry types</option><option>RESERVATION</option><option>DEBIT</option><option>RELEASE</option><option>CREDIT</option></select></div>
+        <div class="col-lg-2"><input class="form-control" name="transfer_id" placeholder="Transfer ID"></div>
+        <div class="col-lg-2"><input class="form-control" name="account_number" placeholder="Account number"></div>
+        <div class="col-lg-1"><input class="form-control" type="date" name="start_date" title="From date"></div>
+        <div class="col-lg-1"><input class="form-control" type="date" name="end_date" title="To date"></div>
+        <div class="col-lg-2 d-flex gap-2"><button class="btn btn-primary flex-fill">Filter</button><button class="btn btn-light" type="reset">Clear</button></div>
+      </form>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead><tr><th>Date</th><th>Bank</th><th>Account</th><th>Transfer ID</th><th>Entry type</th><th class="text-end">Amount</th><th>Description</th></tr></thead>
+          <tbody id="ledgerRows"><tr><td colspan="7" class="text-center text-muted py-4">Loading ledger entries...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="d-flex justify-content-between align-items-center">
+        <small id="pageInfo" class="text-muted"></small>
+        <div class="btn-group"><button class="btn btn-outline-secondary btn-sm" id="previousPage">Previous</button><button class="btn btn-outline-secondary btn-sm" id="nextPage">Next</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="{% static 'js/transaction_ledger.js' %}"></script>
+{% endblock %}

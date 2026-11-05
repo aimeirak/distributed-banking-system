@@ -1,20 +1,38 @@
 from django.db import transaction, IntegrityError
 
+from flask import request
+import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
-from transfers.models import Transfer
-from transfers.serializers import TransferCreateSerializer
+from transfers.models import Transfer, UserProfile
+from transfers.serializers import CustomerRegistrationSerializer, TransferCreateSerializer
 from transfers.services.saga_orchestrator import SagaOrchestrator
 
 from transfers.services.recovery_service import TransferRecoveryService
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from .permissions import IsCustomer, IsSystemAdmin
+from transfers.services.bank_a_client import BankAClient
+from transfers.services.bank_b_client import BankBClient
+from transfers.permissions import IsCustomer
+from django.contrib.auth.decorators import login_required
+import json
+from decimal import Decimal
 
+from django.db.models import Count, Sum, Q
+from django.db.models.functions import TruncMonth
+from django.shortcuts import render
+from django.utils import timezone
+from rest_framework.pagination import PageNumberPagination
 
 class TransferCreateAPIView(APIView):
+    # Temporary safe default: account ownership checks are not yet implemented.
+    # permission_classes = [IsAdminUser]
+    permission_classes = [IsCustomer]
 
     def post(self, request):
-
         serializer = TransferCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -29,6 +47,7 @@ class TransferCreateAPIView(APIView):
             "destination_account_number": data["destination_account_number"],
             "amount": data["amount"],
             "currency": data["currency"],
+             "created_by": request.user,
         }
 
         try:
@@ -48,6 +67,11 @@ class TransferCreateAPIView(APIView):
             created = False
 
         if not created:
+            if transfer.created_by_id != request.user.id:
+                return Response(
+                    {"message": "Transfer not found."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
             # Do not allow an existing idempotency key
             # to be reused for a different transaction.
@@ -99,6 +123,7 @@ class TransferCreateAPIView(APIView):
 
 
 class TransferDetailAPIView(APIView):
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, transfer_id):
 
@@ -111,6 +136,17 @@ class TransferDetailAPIView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
+        # Check whether the user is allowed to view this transfer
+        if (
+            not request.user.is_staff
+            and transfer.created_by_id != request.user.id
+        ):
+            return Response(
+                {"message": "Transfer not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Serialize transfer details
         serializer = TransferCreateSerializer(transfer)
 
         steps = transfer.steps.all().values(
@@ -129,6 +165,9 @@ class TransferDetailAPIView(APIView):
         })
 
 class TransferRecoveryAPIView(APIView):
+    # Recovery inspection and execution are restricted to staff users.
+    permission_classes = [IsSystemAdmin]
+
 
     def get(self, request, transfer_id):
         try:
@@ -173,3 +212,367 @@ class TransferRecoveryAPIView(APIView):
                 "message": "Unable to recover transfer.",
                 "error": str(exc)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CustomerRegistrationAPIView(APIView):
+    permission_classes = [AllowAny]
+    @transaction.atomic
+    def post(self, request):
+        serializer = CustomerRegistrationSerializer( data=request.data)
+
+        if serializer.is_valid():
+            user = serializer.save()
+
+            profile = user.profile
+
+            return Response(
+                {
+                    "message": "Customer registered successfully.",
+                    "customer": {
+                        "user_id": user.id,
+                        "customer_id": str(profile.customer_id),
+                        "username": user.username,
+                        "email": user.email,
+                        "role": profile.role,
+                    }
+                },
+                status=status.HTTP_201_CREATED
+            )
+
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+class CustomerProfileAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        profile, created = UserProfile.objects.get_or_create(
+            user=request.user
+        )
+
+        return Response({
+            "user_id": request.user.id,
+            "customer_id": str(profile.customer_id),
+            "username": request.user.username,
+            "email": request.user.email,
+            "role": profile.role,
+            "phone_number": profile.phone_number,
+        })
+    
+@login_required(login_url="login")
+def dashboard(request):
+    year = timezone.localdate().year
+
+    processing_statuses = [
+        Transfer.TransferStatus.PENDING,
+        Transfer.TransferStatus.RESERVING,
+        Transfer.TransferStatus.RESERVED,
+        Transfer.TransferStatus.CREDITING,
+        Transfer.TransferStatus.CREDITED,
+        Transfer.TransferStatus.COMMITTING,
+        Transfer.TransferStatus.RECOVERING,
+    ]
+
+    month_labels = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ]
+
+    # Monthly counts for the current calendar year.
+    monthly_rows = (
+        Transfer.objects
+        .filter(created_at__year=year)
+        .annotate(month=TruncMonth("created_at"))
+        .values("month")
+        .annotate(
+            completed=Count(
+                "id",
+                filter=Q(status=Transfer.TransferStatus.COMPLETED),
+            ),
+            requires_review=Count(
+                "id",
+                filter=Q(status=Transfer.TransferStatus.REQUIRES_REVIEW),
+            ),
+        )
+        .order_by("month")
+    )
+
+    monthly_by_number = {
+        row["month"].month: row for row in monthly_rows if row["month"]
+    }
+
+    monthly_activity = [
+        {
+            "completed": monthly_by_number.get(month, {}).get("completed", 0),
+            "requires_review": monthly_by_number.get(month, {}).get("requires_review", 0),
+        }
+        for month in range(1, 13)
+    ]
+
+    # Status distribution.
+    status_labels = ["Completed", "Processing", "Requires Review", "Failed"]
+    status_values = [
+        Transfer.objects.filter(
+            status=Transfer.TransferStatus.COMPLETED
+        ).count(),
+        Transfer.objects.filter(status__in=processing_statuses).count(),
+        Transfer.objects.filter(
+            status=Transfer.TransferStatus.REQUIRES_REVIEW
+        ).count(),
+        Transfer.objects.filter(status="FAILED").count(),
+    ]
+
+    # Monthly transfer value grouped by currency to avoid mixing currencies.
+    amount_rows = list(
+        Transfer.objects
+        .filter(created_at__year=year)
+        .exclude(status="FAILED")
+        .annotate(month=TruncMonth("created_at"))
+        .values("month", "currency")
+        .annotate(total_amount=Sum("amount"))
+        .order_by("month", "currency")
+    )
+
+    currencies = sorted({
+        row["currency"] for row in amount_rows if row["currency"]
+    })
+
+    monthly_value_datasets = []
+    for currency in currencies:
+        amounts_by_month = {}
+        for row in amount_rows:
+            if row["currency"] == currency and row["month"]:
+                amounts_by_month[row["month"].month] = float(
+                    row["total_amount"] or Decimal("0")
+                )
+
+        monthly_value_datasets.append({
+            "label": currency,
+            "data": [
+                amounts_by_month.get(month, 0)
+                for month in range(1, 13)
+            ],
+            "fill": False,
+            "tension": 0.3,
+        })
+
+    context = {
+        "total_transfers": Transfer.objects.count(),
+        "completed_transfers": status_values[0],
+        "pending_transfers": status_values[1],
+        "review_transfers": status_values[2],
+        "recent_transfers": Transfer.objects.order_by("-created_at")[:10],
+
+        "chart_month_labels_json": json.dumps(month_labels),
+        "monthly_activity_json": json.dumps(monthly_activity),
+        "status_labels_json": json.dumps(status_labels),
+        "status_values_json": json.dumps(status_values),
+        "monthly_value_datasets_json": json.dumps(monthly_value_datasets),
+    }
+
+    return render(request, "transfers/index.html", context)
+
+class CustomerSourceAccountsAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsCustomer]
+
+    def get(self, request):
+        try:
+            customer_id = request.user.profile.customer_id
+
+            accounts = BankAClient().get_customer_accounts(
+                customer_id
+            )
+
+            return Response({
+                "accounts": accounts
+            }, status=status.HTTP_200_OK)
+
+        except requests.RequestException:
+            return Response(
+                {"message": "Unable to retrieve Bank A accounts."},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+
+class VerifyDestinationAccountAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsCustomer]
+
+    def get(self, request):
+        account_number = request.query_params.get(
+            "account_number", ""
+        ).strip()
+
+        if not account_number:
+            return Response(
+                {"message": "Please enter the receiver account number."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            account = BankBClient().lookup_account(
+                account_number
+            )
+
+            if account is None:
+                return Response(
+                    {"verified": False,
+                     "message": "Receiver account was not found."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            return Response({
+                "verified": True,
+                "account": account
+            }, status=status.HTTP_200_OK)
+
+        except requests.RequestException:
+            return Response(
+                {"message": "Unable to verify receiver account with Bank B."},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+@login_required(login_url="login")
+def new_transfer_page(request):
+    return render(request, "transfers/transfer.html")     
+
+@login_required(login_url="login")
+def all_transfers_page(request):
+        return render(request, "transfers/all_transfers.html")  
+
+
+
+class CustomerTransferPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 50
+
+
+class CustomerTransferListAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsCustomer]
+
+    def get(self, request):
+        # Only retrieve transfers initiated by the logged-in customer.
+        customer_transfers = Transfer.objects.filter(
+            created_by=request.user
+        )
+
+        # Calculate summary statistics using all customer transfers.
+        summary = {
+            "total": customer_transfers.count(),
+            "completed": customer_transfers.filter(
+                status=Transfer.TransferStatus.COMPLETED
+            ).count(),
+            "processing": customer_transfers.filter(
+                status__in=[
+                    Transfer.TransferStatus.PENDING,
+                    Transfer.TransferStatus.RESERVING,
+                    Transfer.TransferStatus.RESERVED,
+                    Transfer.TransferStatus.CREDITING,
+                    Transfer.TransferStatus.CREDITED,
+                    Transfer.TransferStatus.COMMITTING,
+                    Transfer.TransferStatus.RECOVERING,
+                    Transfer.TransferStatus.COMPENSATING,
+                ]
+            ).count(),
+            "requires_review": customer_transfers.filter(
+                status=Transfer.TransferStatus.REQUIRES_REVIEW
+            ).count(),
+            "failed": customer_transfers.filter(
+                status=Transfer.TransferStatus.FAILED
+            ).count(),
+        }
+
+        queryset = customer_transfers
+
+        # Search by source or destination account number.
+        search = request.query_params.get("search", "").strip()
+
+        if search:
+            queryset = queryset.filter(
+                Q(source_account_number__icontains=search)
+                | Q(destination_account_number__icontains=search)
+            )
+
+            # Also support searching by transfer UUID.
+            try:
+                transfer_id = uuid.UUID(search)
+                queryset = queryset | customer_transfers.filter(
+                    id=transfer_id
+                )
+            except ValueError:
+                pass
+
+        # Filter by transfer status.
+        transfer_status = request.query_params.get("status", "").strip()
+
+        if transfer_status:
+            valid_statuses = [
+                choice[0] for choice in Transfer.TransferStatus.choices
+            ]
+
+            if transfer_status not in valid_statuses:
+                return Response(
+                    {"message": "Invalid transfer status."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            queryset = queryset.filter(status=transfer_status)
+
+        # Filter by creation date.
+        date_from = request.query_params.get("date_from")
+        date_to = request.query_params.get("date_to")
+
+        if date_from:
+            queryset = queryset.filter(created_at__date__gte=date_from)
+
+        if date_to:
+            queryset = queryset.filter(created_at__date__lte=date_to)
+
+        queryset = queryset.order_by("-created_at")
+
+        # Paginate results.
+        paginator = CustomerTransferPagination()
+        page = paginator.paginate_queryset(queryset, request)
+
+        serializer = TransferCreateSerializer(page, many=True)
+
+        return paginator.get_paginated_response({
+            "summary": summary,
+            "transfers": serializer.data,
+        })
+
+class AccountManagementAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """
+        Render the Account Management page.
+        """
+
+        try:
+            role = request.user.profile.role
+        except Exception:
+            role = None
+
+        allowed_roles = (
+            "CUSTOMER",
+            "BANK_OFFICER",
+            "BANK_ADMIN",
+            "SYSTEM_ADMIN",
+        )
+
+        if role not in allowed_roles:
+            from django.http import HttpResponseForbidden
+
+            return HttpResponseForbidden(
+                "You do not have permission to access Account Management."
+            )
+
+        return render(
+            request,
+            "transfers/account_management.html"
+        )
+    

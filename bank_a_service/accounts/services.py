@@ -254,3 +254,45 @@ def get_transfer_status(transfer_id):
         "currency": reservation.account.currency,
         "status": reservation.status,
     }
+
+@transaction.atomic
+def link_account_to_customer(account_id, customer_id):
+    customer_id = UUID(str(customer_id))
+
+    account = get_object_or_404(
+        BankAccount.objects.select_for_update(),
+        id=account_id
+    )
+
+    if account.owner_customer_id is not None:
+        if account.owner_customer_id == customer_id:
+            return account
+
+        raise ValidationError(
+            "This account is already linked to another customer."
+        )
+
+    account.owner_customer_id = customer_id
+    account.save(update_fields=["owner_customer_id", "updated_at"])
+
+    return account
+
+def verify_account_ownership(account_id, customer_id):
+    customer_id = UUID(str(customer_id))
+
+    account = get_object_or_404(
+        BankAccount,
+        id=account_id
+    )
+
+    if account.owner_customer_id != customer_id:
+        raise ValidationError(
+            "Customer does not own this bank account."
+        )
+
+    if account.status != BankAccount.AccountStatus.ACTIVE:
+        raise ValidationError(
+            "Bank account is not active."
+        )
+
+    return account

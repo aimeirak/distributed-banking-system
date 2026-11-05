@@ -1,0 +1,36 @@
+{% extends "transfers/base.html" %}
+{% load static %}
+{% block title %}New Transfer | Distributed Banking{% endblock %}
+{% block page_title %}<h1 class="h3 mb-1">New Money Transfer</h1><p class="text-muted">Transfer money from Bank A to Bank B</p>{% endblock %}
+{% block content %}
+<div class="row"><div class="col-xl-8">
+<div class="card"><div class="card-header"><h5 class="card-title mb-0">Transfer Details</h5></div><div class="card-body">
+<!-- <div id="transfer-alert" class="alert d-none" role="alert"></div> -->
+<form id="new-transfer-form" novalidate>{% csrf_token %}
+<div class="mb-3"><label for="source-account" class="form-label">Source account (Bank A)</label><select class="form-select" id="source-account" required><option value="">Loading your accounts...</option></select><div id="source-balance" class="form-text"></div></div>
+<div class="mb-3"><label for="destination-number" class="form-label">Receiver account number (Bank B)</label><div class="input-group"><input id="destination-number" class="form-control" maxlength="30" autocomplete="off" placeholder="Enter Bank B account number" required><button type="button" class="btn btn-outline-primary" id="verify-receiver">Verify account</button></div></div>
+<div id="receiver-panel" class="alert alert-success d-none"><strong>Receiver verified</strong><div id="receiver-name"></div><small id="receiver-account"></small></div>
+<div class="mb-3"><label for="transfer-amount" class="form-label">Amount (RWF)</label><input id="transfer-amount" type="number" class="form-control" min="0.01" step="0.01" placeholder="0.00" required></div>
+<div class="d-flex gap-2"><button class="btn btn-primary" id="submit-transfer" type="submit" disabled>Submit transfer</button><a class="btn btn-outline-secondary" href="/">Cancel</a></div>
+</form></div></div></div>
+<div class="col-xl-4"><div class="card"><div class="card-header"><h5 class="card-title mb-0">Transfer Summary</h5></div><div class="card-body"><div class="mb-2 text-muted">From</div><strong id="summary-from">—</strong><hr><div class="mb-2 text-muted">To</div><strong id="summary-to">—</strong><hr><div class="mb-2 text-muted">Amount</div><h4 id="summary-amount">0.00 RWF</h4><p class="text-muted small mb-0">Receiver must be verified before submitting. Final status may require asynchronous recovery.</p></div></div></div></div>
+<div id="notification-container">
+    <div id="transfer-notification" class="transfer-notification">
+        <div id="notification-icon" class="notification-icon">
+            <i class="fas fa-check"></i>
+        </div>
+
+        <div class="notification-content">
+            <strong id="notification-title">Success</strong>
+            <p id="notification-message"></p>
+        </div>
+
+        <button type="button"
+                class="notification-close"
+                onclick="closeTransferNotification()">
+            &times;
+        </button>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/new_transfer.js' %}"></script>{% endblock %}

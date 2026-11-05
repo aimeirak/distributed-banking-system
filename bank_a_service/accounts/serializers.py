@@ -30,5 +30,12 @@ class ReserveFundsSerializer(serializers.Serializer):
 
 
 class TransferActionSerializer(serializers.Serializer):
-
     transfer_id = serializers.UUIDField()
+
+class LinkAccountOwnershipSerializer(serializers.Serializer):
+    account_id = serializers.UUIDField()
+    customer_id = serializers.UUIDField()
+
+class VerifyAccountOwnershipSerializer(serializers.Serializer):
+    account_id = serializers.UUIDField()
+    customer_id = serializers.UUIDField()

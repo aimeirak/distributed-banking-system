@@ -1,6 +1,7 @@
 import uuid
 
 from django.db import models
+from django.conf import settings
 
 
 class Transfer(models.Model):
@@ -84,9 +85,7 @@ class Transfer(models.Model):
     default=0
     )
 
-    max_retries = models.PositiveIntegerField(
-        default=3
-    )
+    max_retries = models.PositiveIntegerField(default=10)
 
     next_retry_at = models.DateTimeField(
         null=True,
@@ -98,9 +97,10 @@ class Transfer(models.Model):
         blank=True
     )
 
+    # Lease metadata prevents a crashed recovery worker from blocking a transfer forever.
     recovery_started_at = models.DateTimeField(
-    null=True,
-    blank=True
+        null=True,
+        blank=True
     )
 
     recovery_lease_until = models.DateTimeField(
@@ -112,6 +112,24 @@ class Transfer(models.Model):
         null=True,
         blank=True
     )
+
+    # Set when automatic recovery attempts are exhausted and admin action is required.
+    dead_lettered_at = models.DateTimeField(
+        null=True,
+        blank=True
+    )
+
+    created_by = models.ForeignKey(
+    settings.AUTH_USER_MODEL,
+    on_delete=models.SET_NULL,
+    null=True,
+    blank=True,
+    related_name="initiated_transfers"
+)
+    recovery_deadline = models.DateTimeField(
+    null=True,
+    blank=True
+)
 
     class Meta:
         db_table = "transfers"
@@ -190,3 +208,43 @@ class TransferStep(models.Model):
 
     def __str__(self):
         return f"{self.step_name} - {self.status}"
+
+class UserProfile(models.Model):
+
+    class Role(models.TextChoices):
+        CUSTOMER = "CUSTOMER", "Customer"
+        BANK_OFFICER = "BANK_OFFICER", "Bank Officer"
+        BANK_ADMIN = "BANK_ADMIN", "Bank Administrator"
+        SYSTEM_ADMIN = "SYSTEM_ADMIN", "System Administrator"
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile"
+    )
+
+    role = models.CharField(
+        max_length=30,
+        choices=Role.choices,
+        default=Role.CUSTOMER
+    )
+
+    phone_number = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    customer_id = models.UUIDField(
+    default=uuid.uuid4,
+    unique=True,
+    editable=False
+)
+
+    class Meta:
+        db_table = "user_profiles"
+
+    def __str__(self):
+        return f"{self.user.username} - {self.role}"

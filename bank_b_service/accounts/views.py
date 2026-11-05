@@ -6,6 +6,7 @@ from django.http import Http404
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from django.contrib.auth.decorators import login_required
 
 from accounts.models import BankAccount
 from accounts.serializers import (
@@ -20,8 +21,15 @@ from accounts.services import (
     get_transfer_status
 )
 
+from accounts.permissions import (
+    IsInternalService,
+    IsAccountAdministrator
+)
+
 
 class BankAccountListCreateAPIView(APIView):
+
+    permission_classes = [IsAccountAdministrator]
 
     def get(self, request):
         accounts = BankAccount.objects.all()
@@ -63,6 +71,8 @@ class BankAccountListCreateAPIView(APIView):
 
 class AccountBalanceAPIView(APIView):
 
+    permission_classes = [IsInternalService]
+
     def get(self, request, account_id):
         try:
             balance = get_account_balance(account_id)
@@ -76,6 +86,8 @@ class AccountBalanceAPIView(APIView):
 
 
 class CreditAccountAPIView(APIView):
+
+    permission_classes = [IsInternalService]
 
     def post(self, request):
         serializer = CreditAccountSerializer(data=request.data)
@@ -112,7 +124,7 @@ class CreditAccountAPIView(APIView):
             )
 
 class TransferStatusAPIView(APIView):
-
+    permission_classes = [IsInternalService]
     def get(self, request, transfer_id):
 
         try:
@@ -139,3 +151,58 @@ class TransferStatusAPIView(APIView):
                 )
 
             raise
+
+class BankAccountLookupAPIView(APIView):
+    permission_classes = [IsInternalService]
+
+    def get(self, request):
+        account_number = request.query_params.get("account_number")
+
+        if not account_number:
+            return Response(
+                {"message": "Account number is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            account = BankAccount.objects.get(
+                account_number=account_number.strip()
+            )
+
+        except BankAccount.DoesNotExist:
+            return Response(
+                {"message": "Bank account not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if account.status != BankAccount.AccountStatus.ACTIVE:
+            return Response(
+                {"message": "Receiver account is not active."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response({
+            "verified": True,
+            "account_id": str(account.id),
+            "account_number": account.account_number,
+            "customer_name": account.customer_name,
+            "currency": account.currency,
+            "status": account.status
+        }, status=status.HTTP_200_OK)
+
+
+    @login_required(login_url="login")
+    def account_management_page(request):
+        """Render the Account Management page; data comes from existing bank APIs."""
+        try:
+            role = request.user.profile.role
+        except Exception:
+            role = None
+
+        if role not in ("CUSTOMER", "BANK_OFFICER", "BANK_ADMIN", "SYSTEM_ADMIN"):
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden(
+                "You do not have permission to access Account Management."
+            )
+        
+        return render(request, "transfers/account_management.html")

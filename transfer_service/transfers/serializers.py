@@ -1,12 +1,12 @@
 from decimal import Decimal
 
+from django.contrib.auth.models import User
 from rest_framework import serializers
 
-from transfers.models import Transfer
+from transfers.models import Transfer, UserProfile
 
 
 class TransferCreateSerializer(serializers.ModelSerializer):
-
     idempotency_key = serializers.UUIDField(
         required=True,
         write_only=True
@@ -25,12 +25,13 @@ class TransferCreateSerializer(serializers.ModelSerializer):
             "currency",
             "status",
             "created_at",
+            "completed_at",
         ]
-
         read_only_fields = [
             "id",
             "status",
             "created_at",
+            "completed_at",
         ]
 
     def validate_amount(self, value):
@@ -41,7 +42,6 @@ class TransferCreateSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
-
         if attrs["source_account_id"] == attrs["destination_account_id"]:
             raise serializers.ValidationError(
                 "Source and destination accounts cannot be the same."
@@ -53,3 +53,37 @@ class TransferCreateSerializer(serializers.ModelSerializer):
             )
 
         return attrs
+
+
+class CustomerRegistrationSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(
+        write_only=True,
+        min_length=8
+    )
+    phone_number = serializers.CharField(
+        required=False,
+        allow_blank=True
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "email",
+            "password",
+            "phone_number",
+        ]
+        read_only_fields = ["id"]
+
+    def create(self, validated_data):
+        phone_number = validated_data.pop("phone_number", "")
+        user = User.objects.create_user(**validated_data)
+
+        UserProfile.objects.create(
+            user=user,
+            role=UserProfile.Role.CUSTOMER,
+            phone_number=phone_number
+        )
+
+        return user
