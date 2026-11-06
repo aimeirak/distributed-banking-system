@@ -3,7 +3,11 @@ from django.urls import path
 from accounts.views import (
     BankAccountListCreateAPIView,
     AccountBalanceAPIView,
+    CashDepositAPIView,
+    CashWithdrawalAPIView,
     CreditAccountAPIView,
+    CustomerAccountTransactionsAPIView,
+    MobileMoneyDepositAPIView,
     TransferStatusAPIView,
     BankAccountLookupAPIView,
     CustomerBankAccountsAPIView
@@ -18,4 +22,8 @@ urlpatterns = [
     path('accounts/lookup/',BankAccountLookupAPIView.as_view(),name='bank-account-lookup'),
     path("ledger/entries/",LedgerEntriesAPIView.as_view(),name="ledger-entries"),
     path('accounts/customer/<uuid:customer_id>/',CustomerBankAccountsAPIView.as_view(), name='customer-bank-accounts'),
+    path("accounts/deposits/cash/", CashDepositAPIView.as_view(), name="cash-deposit"),
+    path("accounts/deposits/mobile-money/",MobileMoneyDepositAPIView.as_view(),name="mobile-money-deposit",),
+    path("accounts/withdrawals/cash/",CashWithdrawalAPIView.as_view(),name="cash-withdrawal",),
+    path("transactions/customer/<uuid:customer_id>/",CustomerAccountTransactionsAPIView.as_view(),name="customer-account-transactions"),
 ]
