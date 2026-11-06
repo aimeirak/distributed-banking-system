@@ -8,8 +8,9 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth.decorators import login_required
 
-from accounts.models import BankAccount
+from accounts.models import BankAccount,AccountReservation
 from accounts.serializers import (
+    AccountTransactionRequestSerializer,
     BankAccountSerializer,
     CreditAccountSerializer
 )
@@ -26,10 +27,44 @@ from accounts.permissions import (
     IsAccountAdministrator
 )
 
+from accounts.serializers import AccountTransactionHistorySerializer
+from accounts.services import deposit_cash, withdraw_cash
+from accounts.services import deposit_mobile_money
+from ledger.models import AccountTransaction
+
+
+
+def _account_transaction_response(account_transaction, created):
+        return Response(
+            {
+                "message": (
+                    "Account transaction completed successfully."
+                    if created else
+                    "This transaction was already processed."
+                ),
+                "created": created,
+                "data": {
+                    "id": str(account_transaction.id),
+                    "transaction_reference": str(account_transaction.transaction_reference),
+                    "transaction_type": account_transaction.transaction_type,
+                    "account_id": str(account_transaction.account_id),
+                    "account_number": account_transaction.account.account_number,
+                    "customer_id": str(account_transaction.customer_id),
+                    "amount": str(account_transaction.amount),
+                    "currency": account_transaction.currency,
+                    "balance_before": str(account_transaction.balance_before),
+                    "balance_after": str(account_transaction.balance_after),
+                    "description": account_transaction.description,
+                    "created_at": account_transaction.created_at.isoformat(),
+                },
+            },
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
 class BankAccountListCreateAPIView(APIView):
 
-    permission_classes = [IsAccountAdministrator]
+    authentication_classes = []
+    permission_classes = [IsInternalService]
 
     def get(self, request):
         accounts = BankAccount.objects.all()
@@ -54,7 +89,8 @@ class BankAccountListCreateAPIView(APIView):
                 ),
                 currency=serializer.validated_data.get(
                     'currency', 'RWF'
-                )
+                ),
+                owner_customer_id=request.data.get("owner_customer_id"),
             )
 
             return Response(
@@ -206,3 +242,96 @@ class BankAccountLookupAPIView(APIView):
             )
         
         return render(request, "transfers/account_management.html")
+    
+class CustomerBankAccountsAPIView(APIView):
+    permission_classes = [IsInternalService]
+
+    def get(self, request, customer_id):
+
+        accounts = BankAccount.objects.filter(
+            owner_customer_id=customer_id
+        ).order_by("-created_at")
+
+        serializer = BankAccountSerializer(
+            accounts,
+            many=True
+        )
+
+        return Response({
+            "customer_id": str(customer_id),
+            "accounts": serializer.data
+        }, status=status.HTTP_200_OK)
+
+class CashDepositAPIView(APIView):
+    authentication_classes = []
+    permission_classes = [IsInternalService]
+
+    def post(self, request):
+        serializer = AccountTransactionRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            result, created = deposit_cash(**serializer.validated_data)
+            return _account_transaction_response(result, created)
+        except DjangoValidationError as exc:
+            return Response(
+                {"message": exc.messages},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+
+class MobileMoneyDepositAPIView(APIView):
+    authentication_classes = []
+    permission_classes = [IsInternalService]
+
+    def post(self, request):
+        serializer = AccountTransactionRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            result, created = deposit_mobile_money(**serializer.validated_data)
+            return _account_transaction_response(result, created)
+        except DjangoValidationError as exc:
+            return Response(
+                {"message": exc.messages},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+
+class CashWithdrawalAPIView(APIView):
+    authentication_classes = []
+    permission_classes = [IsInternalService]
+
+    def post(self, request):
+        serializer = AccountTransactionRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            result, created = withdraw_cash(**serializer.validated_data)
+            return _account_transaction_response(result, created)
+        except DjangoValidationError as exc:
+            return Response(
+                {"message": exc.messages},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+class CustomerAccountTransactionsAPIView(APIView):
+    authentication_classes = []
+    permission_classes = [IsInternalService]
+
+    def get(self, request, customer_id):
+        transactions = (
+            AccountTransaction.objects
+            .filter(customer_id=customer_id)
+            .select_related("account")
+            .order_by("-created_at")
+        )
+
+        serializer = AccountTransactionHistorySerializer(
+            transactions,
+            many=True
+        )
+
+        return Response({
+            "transactions": serializer.data
+        }, status=status.HTTP_200_OK)

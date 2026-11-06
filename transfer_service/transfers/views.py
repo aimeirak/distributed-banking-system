@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import transaction, IntegrityError
 
 from flask import request
@@ -23,9 +25,17 @@ from decimal import Decimal
 
 from django.db.models import Count, Sum, Q
 from django.db.models.functions import TruncMonth
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.utils import timezone
 from rest_framework.pagination import PageNumberPagination
+
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.views.generic import ListView, View
+from django.views.generic import DetailView
+from django.core.exceptions import PermissionDenied
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.views.generic import TemplateView
+from django.shortcuts import redirect
 
 class TransferCreateAPIView(APIView):
     # Temporary safe default: account ownership checks are not yet implemented.
@@ -575,4 +585,479 @@ class AccountManagementAPIView(APIView):
             request,
             "transfers/account_management.html"
         )
+
+
+class CustomerManagementView(
+    LoginRequiredMixin,
+    UserPassesTestMixin,
+    ListView
+    ):
+    model = UserProfile
+    template_name = "transfers/customer_management.html"
+    context_object_name = "customers"
+    paginate_by = 10
+    login_url = "login"
+    raise_exception = True
+
+    def test_func(self):
+        user = self.request.user
+
+        if user.is_superuser:
+            return True
+
+        try:
+            return user.profile.role == UserProfile.Role.SYSTEM_ADMIN
+        except UserProfile.DoesNotExist:
+            return False
+
+    def get_queryset(self):
+        queryset = (
+            UserProfile.objects
+            .filter(role=UserProfile.Role.CUSTOMER)
+            .select_related("user")
+            .order_by("-created_at")
+        )
+
+        search = self.request.GET.get("search", "").strip()
+
+        if search:
+            queryset = queryset.filter(
+                Q(user__username__icontains=search) |
+                Q(user__email__icontains=search) |
+                Q(phone_number__icontains=search) |
+                Q(customer_id__icontains=search)
+            )
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        customers = UserProfile.objects.filter(
+            role=UserProfile.Role.CUSTOMER
+        )
+
+        context["total_customers"] = customers.count()
+
+        context["active_customers"] = customers.filter(
+            user__is_active=True
+        ).count()
+
+        context["inactive_customers"] = customers.filter(
+            user__is_active=False
+        ).count()
+
+        context["search"] = self.request.GET.get("search", "")
+
+        return context
+
+class CustomerDetailView(LoginRequiredMixin,UserPassesTestMixin,DetailView):
+    model = UserProfile
+    template_name = "transfers/customer_detail.html"
+    context_object_name = "customer"
+    login_url = "login"
+
+    def test_func(self):
+        user = self.request.user
+
+        if user.is_superuser:
+            return True
+
+        try:
+            return user.profile.role == UserProfile.Role.SYSTEM_ADMIN
+        except UserProfile.DoesNotExist:
+            return False
+
+    def get_queryset(self):
+        return (
+            UserProfile.objects
+            .filter(role=UserProfile.Role.CUSTOMER)
+            .select_related("user")
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        customer = self.object
+        customer_id = customer.customer_id
+
+        # Customer's transfer history from Transfer Coordinator.
+        context["transfers"] = (
+            Transfer.objects
+            .filter(created_by=customer.user)
+            .order_by("-created_at")[:20]
+        )
+
+        context["total_transfers"] = Transfer.objects.filter(
+            created_by=customer.user
+        ).count()
+
+        context["completed_transfers"] = Transfer.objects.filter(
+            created_by=customer.user,
+            status=Transfer.TransferStatus.COMPLETED
+        ).count()
+
+        # Retrieve accounts belonging to this customer from Bank A.
+        try:
+            bank_a_accounts = BankAClient().get_customer_accounts(
+                customer_id
+            )
+
+            context["bank_a_accounts"] = bank_a_accounts
+            context["bank_a_available"] = True
+            context["bank_a_error"] = None
+
+        except requests.RequestException:
+            context["bank_a_accounts"] = []
+            context["bank_a_available"] = False
+            context["bank_a_error"] = (
+                "Unable to retrieve accounts from Bank A."
+            )
+
+        # Bank B customer-specific account endpoint is not yet available.
+        context["bank_b_accounts"] = []
+        context["bank_b_available"] = False
+        context["bank_b_error"] = (
+            "Customer-specific account retrieval is not yet configured "
+            "for Bank B."
+        )
+
+        return context
+
+
+class AdminAccountManagementAPIView(APIView):
+    permission_classes = [IsSystemAdmin]
+
     
+    def get(self, request):
+        customers = UserProfile.objects.filter(
+            role=UserProfile.Role.CUSTOMER
+        ).select_related("user").order_by("-created_at")
+
+        customer_data = [
+            {
+                "customer_id": str(profile.customer_id),
+                "username": profile.user.username,
+                "email": profile.user.email,
+                "phone_number": profile.phone_number or "",
+            }
+            for profile in customers
+        ]
+
+        bank_accounts = {
+            "BANK_A": [],
+            "BANK_B": [],
+        }
+
+        bank_status = {
+            "BANK_A": "UNAVAILABLE",
+            "BANK_B": "UNAVAILABLE",
+        }
+
+        errors = {}
+
+        clients = {
+            "BANK_A": BankAClient(),
+            "BANK_B": BankBClient(),
+        }
+
+        for bank_name, client in clients.items():
+            try:
+                response = client.get_accounts()
+
+                if isinstance(response, dict):
+                    response = response.get("accounts", [])
+
+                bank_accounts[bank_name] = [
+                    {
+                        **account,
+                        "bank": bank_name,
+                    }
+                    for account in response
+                ]
+
+                bank_status[bank_name] = "CONNECTED"
+
+            except requests.RequestException as exc:
+                errors[bank_name] = str(exc)
+
+        all_accounts = (
+            bank_accounts["BANK_A"] +
+            bank_accounts["BANK_B"]
+        )
+
+        return Response({
+            "customers": customer_data,
+            "accounts": all_accounts,
+            "bank_accounts": bank_accounts,
+            "bank_status": bank_status,
+            "summary": {
+                "total_accounts": len(all_accounts),
+                "active_accounts": sum(
+                    1 for account in all_accounts
+                    if account.get("status") == "ACTIVE"
+                ),
+                "frozen_accounts": sum(
+                    1 for account in all_accounts
+                    if account.get("status") == "FROZEN"
+                ),
+            },
+            "errors": errors,
+        })
+
+
+    def post(self, request):
+        customer_id = request.data.get("customer_id")
+        bank = request.data.get("bank")
+        account_number = request.data.get("account_number")
+        currency = request.data.get("currency", "RWF")
+        initial_balance = request.data.get("initial_balance", "0.00")
+
+        if not all([customer_id, bank, account_number]):
+            return Response(
+                {"message": "Customer, bank and account number are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if bank not in ["BANK_A", "BANK_B"]:
+            return Response(
+                {"message": "Invalid bank selected."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            profile = UserProfile.objects.select_related("user").get(
+                customer_id=customer_id,
+                role=UserProfile.Role.CUSTOMER
+            )
+        except UserProfile.DoesNotExist:
+            return Response(
+                {"message": "Customer not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            client = (
+                BankAClient() if bank == "BANK_A"
+                else BankBClient()
+            )
+
+            account = client.create_account(
+                account_number=account_number,
+                customer_name=profile.user.get_full_name()
+                or profile.user.username,
+                customer_id=profile.customer_id,
+                currency=currency,
+                initial_balance=initial_balance
+            )
+
+            return Response({
+                "message": "Bank account created and linked successfully.",
+                "bank": bank,
+                "customer": {
+                    "customer_id": str(profile.customer_id),
+                    "username": profile.user.username,
+                },
+                "account": account
+            }, status=status.HTTP_201_CREATED)
+
+        except requests.RequestException as exc:
+            error_detail = (
+                exc.response.text
+                if exc.response is not None
+                else str(exc)
+            )
+
+            return Response({
+                "message": "Unable to create bank account.",
+                "bank": bank,
+                "error": error_detail
+            }, status=status.HTTP_502_BAD_GATEWAY)
+class BanksPageView(LoginRequiredMixin, View):
+    login_url = "login"
+    def get(self, request):
+        return render(request, "transfers/banks.html")
+
+
+class CustomerBankingAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsCustomer]
+
+    def get(self, request):
+        customer_id = request.user.profile.customer_id
+        accounts = []
+        errors = {}
+
+        for bank_code, client_class in (
+            ("BANK_A", BankAClient),
+            ("BANK_B", BankBClient),
+        ):
+            try:
+                bank_accounts = client_class().get_customer_accounts(
+                    customer_id
+                )
+                if isinstance(bank_accounts, dict):
+                    bank_accounts = bank_accounts.get(
+                        "results", bank_accounts.get("accounts", [])
+                    )
+                for account in bank_accounts:
+                    account = dict(account)
+                    account["bank_code"] = bank_code
+                    accounts.append(account)
+            except requests.RequestException:
+                errors[bank_code] = (
+                    f"Could not retrieve {bank_code.replace('_', ' ')} accounts."
+                )
+
+        return Response({
+            "accounts": accounts,
+            "errors": errors,
+            "customer": {
+                "username": request.user.username,
+                "customer_id": str(customer_id),
+            },
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        customer_id = request.user.profile.customer_id
+
+        bank_code = str(request.data.get("bank_code", "")).upper()
+        account_id = request.data.get("account_id")
+        transaction_type = str(
+            request.data.get("transaction_type", "")
+        ).upper()
+        amount = request.data.get("amount")
+        description = str(request.data.get("description", "")).strip()
+        transaction_reference = request.data.get("transaction_reference")
+
+        if bank_code not in ("BANK_A", "BANK_B"):
+            return Response(
+                {"message": "Select a valid bank account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if transaction_type not in (
+            "CASH_DEPOSIT",
+            "MOBILE_MONEY_DEPOSIT",
+            "CASH_WITHDRAWAL",
+        ):
+            return Response(
+                {"message": "Select a valid transaction type."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            amount_value = float(amount)
+            if amount_value <= 0:
+                raise ValueError()
+        except (TypeError, ValueError):
+            return Response(
+                {"message": "Enter an amount greater than zero."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            uuid.UUID(str(account_id))
+        except (TypeError, ValueError, AttributeError):
+            return Response(
+                {"message": "Select a valid account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            reference = uuid.UUID(str(transaction_reference))
+        except (TypeError, ValueError, AttributeError):
+            return Response(
+                {"message": "Invalid transaction reference."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        client = BankAClient() if bank_code == "BANK_A" else BankBClient()
+
+        try:
+            result = client.create_account_transaction(
+                transaction_type=transaction_type,
+                account_id=account_id,
+                customer_id=customer_id,
+                transaction_reference=reference,
+                amount=amount,
+                description=description,
+            )
+            return Response({
+                "message": "Transaction processed successfully.",
+                "transaction": result,
+            }, status=status.HTTP_200_OK)
+
+        except requests.HTTPError as exc:
+            response = exc.response
+            try:
+                detail = response.json()
+            except (ValueError, AttributeError):
+                detail = {"message": "The bank rejected the transaction."}
+            return Response(
+                detail,
+                status=response.status_code if response is not None else 502,
+            )
+        except requests.RequestException:
+            return Response(
+                {"message": "The selected bank service is currently unavailable."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+class MyBankingPageView(LoginRequiredMixin, TemplateView):
+    template_name = "transfers/my_banking.html"
+    login_url = "login"
+
+    def dispatch(self, request, *args, **kwargs):
+        if not hasattr(request.user, "profile"):
+            return redirect("dashboard")
+
+        if request.user.profile.role != "CUSTOMER":
+            return redirect("dashboard")
+
+        return super().dispatch(request, *args, **kwargs)
+
+class CustomerBankingTransactionsAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsCustomer]
+
+    def get(self, request):
+        customer_id = request.user.profile.customer_id
+
+        transactions = []
+        errors = {}
+
+        for bank_code, client_class in (
+            ("BANK_A", BankAClient),
+            ("BANK_B", BankBClient),
+        ):
+            try:
+                bank_transactions = (
+                    client_class().get_customer_transactions(customer_id)
+                )
+
+                if isinstance(bank_transactions, dict):
+                    bank_transactions = bank_transactions.get(
+                        "results",
+                        bank_transactions.get("transactions", [])
+                    )
+
+                for transaction in bank_transactions:
+                    transaction = dict(transaction)
+                    transaction["bank_code"] = bank_code
+                    transactions.append(transaction)
+
+            except requests.RequestException:
+                errors[bank_code] = (
+                    f"Could not retrieve {bank_code} transactions."
+                )
+
+        transactions.sort(
+            key=lambda item: item.get("created_at", ""),
+            reverse=True
+        )
+
+        return Response({
+            "transactions": transactions,
+            "errors": errors,
+        }, status=status.HTTP_200_OK)
+
+

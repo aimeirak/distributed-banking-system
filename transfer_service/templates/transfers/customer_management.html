@@ -1,0 +1,365 @@
+
+{% extends "transfers/base.html" %}
+{% load static %}
+
+{% block title %}Customer Management | Distributed Banking{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+
+<style>
+    .customer-stat-card {
+        border: 1px solid #e8edf3;
+        border-radius: 12px;
+        background: #fff;
+        padding: 22px;
+        height: 100%;
+    }
+
+    .customer-stat-icon {
+        width: 45px;
+        height: 45px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #eff6ff;
+        color: #2563eb;
+    }
+
+    .customer-stat-number {
+        font-size: 27px;
+        font-weight: 700;
+        color: #243b53;
+    }
+
+    .customer-table-card {
+        background: #fff;
+        border: 1px solid #e8edf3;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .customer-table-card .card-header {
+        background: #fff;
+        padding: 22px;
+        border-bottom: 1px solid #e8edf3;
+    }
+
+    .customer-table th {
+        background: #f8faff;
+        color: #64748b;
+        font-size: 12px;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .customer-table td {
+        vertical-align: middle;
+        padding: 15px 12px;
+    }
+
+    .customer-id {
+        font-family: monospace;
+        font-size: 12px;
+        color: #475569;
+    }
+
+    .customer-avatar {
+        width: 36px;
+        height: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: #eaf1ff;
+        color: #2563eb;
+        font-weight: 700;
+        margin-right: 9px;
+    }
+</style>
+{% endblock %}
+
+
+{% block page_title %}
+<div class="d-flex justify-content-between align-items-center flex-wrap mb-4">
+    <div>
+        <h1 class="h3 mb-1">Customer Management</h1>
+        <p class="text-muted mb-0">
+            View and manage registered banking customers.
+        </p>
+    </div>
+
+    <a href="{% url 'register' %}" class="btn btn-primary">
+        <i data-feather="user-plus" class="me-1"></i>
+        Register Customer
+    </a>
+</div>
+{% endblock %}
+
+
+{% block content %}
+
+<!-- Summary cards -->
+<div class="row mb-4">
+
+    <div class="col-md-4 mb-3">
+        <div class="customer-stat-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted mb-2">Total Customers</div>
+                    <div class="customer-stat-number">
+                        {{ total_customers }}
+                    </div>
+                </div>
+
+                <div class="customer-stat-icon">
+                    <i data-feather="users"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4 mb-3">
+        <div class="customer-stat-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted mb-2">Active Customers</div>
+                    <div class="customer-stat-number text-success">
+                        {{ active_customers }}
+                    </div>
+                </div>
+
+                <div class="customer-stat-icon">
+                    <i data-feather="user-check"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4 mb-3">
+        <div class="customer-stat-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted mb-2">Inactive Customers</div>
+                    <div class="customer-stat-number text-danger">
+                        {{ inactive_customers }}
+                    </div>
+                </div>
+
+                <div class="customer-stat-icon">
+                    <i data-feather="user-x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+
+<!-- Customer table -->
+<div class="customer-table-card">
+
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+
+            <div>
+                <h5 class="mb-1">Registered Customers</h5>
+                <small class="text-muted">
+                    Customer records registered in the system.
+                </small>
+            </div>
+
+            <form method="GET" class="d-flex gap-2">
+                <input type="text"
+                       name="search"
+                       value="{{ search }}"
+                       class="form-control"
+                       placeholder="Search customers..."
+                       style="min-width: 260px;">
+
+                <button type="submit" class="btn btn-primary">
+                    <i data-feather="search"></i>
+                </button>
+
+                {% if search %}
+                    <a href="{% url 'customer-management' %}"
+                       class="btn btn-light">
+                        Clear
+                    </a>
+                {% endif %}
+            </form>
+
+        </div>
+    </div>
+
+
+    <div class="table-responsive">
+        <table class="table table-hover customer-table mb-0">
+
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Customer</th>
+                    <th>Customer ID</th>
+                    <th>Phone Number</th>
+                    <th>Role</th>
+                    <th>Registration Date</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for customer in customers %}
+
+                <tr>
+                    <td>
+                        {{ page_obj.start_index|add:forloop.counter0 }}
+                    </td>
+
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <span class="customer-avatar">
+                                {{ customer.user.username|first|upper }}
+                            </span>
+
+                            <div>
+                                <div class="fw-bold">
+                                    {{ customer.user.username }}
+                                </div>
+
+                                <small class="text-muted">
+                                    {{ customer.user.email }}
+                                </small>
+                            </div>
+                        </div>
+                    </td>
+
+                    <td>
+                        <span class="customer-id">
+                            {{ customer.customer_id }}
+                        </span>
+                    </td>
+
+                    <td>
+                        {{ customer.phone_number|default:"N/A" }}
+                    </td>
+
+                    <td>
+                        <span class="badge bg-info">
+                            {{ customer.get_role_display }}
+                        </span>
+                    </td>
+
+                    <td>
+                        {{ customer.created_at|date:"d M Y, H:i" }}
+                    </td>
+
+                    <td>
+                        {% if customer.user.is_active %}
+                            <span class="badge bg-success">
+                                Active
+                            </span>
+                        {% else %}
+                            <span class="badge bg-danger">
+                                Inactive
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'customer-detail' customer.pk %}"
+                        class="btn btn-sm btn-outline-primary">
+                            <i data-feather="eye"></i>
+                            View Details
+                        </a>
+                    </td>
+                </tr>
+
+                {% empty %}
+
+                <tr>
+                    <td colspan="7" class="text-center py-5">
+                        <i data-feather="users"
+                           style="width:40px;height:40px;color:#94a3b8;">
+                        </i>
+
+                        <h5 class="mt-3">No customers found</h5>
+
+                        <p class="text-muted">
+                            No registered customers match your search.
+                        </p>
+                    </td>
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+        </table>
+    </div>
+
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <div class="card-footer bg-white p-3">
+
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+
+            <small class="text-muted">
+                Showing {{ page_obj.start_index }} -
+                {{ page_obj.end_index }} of
+                {{ page_obj.paginator.count }} customers
+            </small>
+
+            <nav>
+                <ul class="pagination mb-0">
+
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="?page=1&search={{ search|urlencode }}">
+                            First
+                        </a>
+                    </li>
+
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="?page={{ page_obj.previous_page_number }}&search={{ search|urlencode }}">
+                            Previous
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">
+                            {{ page_obj.number }}
+                        </span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="?page={{ page_obj.next_page_number }}&search={{ search|urlencode }}">
+                            Next
+                        </a>
+                    </li>
+
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="?page={{ page_obj.paginator.num_pages }}&search={{ search|urlencode }}">
+                            Last
+                        </a>
+                    </li>
+                    {% endif %}
+
+                </ul>
+            </nav>
+
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+{% endblock %}

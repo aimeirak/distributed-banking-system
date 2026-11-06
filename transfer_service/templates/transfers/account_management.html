@@ -1,48 +1,463 @@
+
 {% extends "transfers/base.html" %}
 {% load static %}
+
 {% block title %}Account Management | Distributed Banking{% endblock %}
-{% block content %}
-<div class="container-fluid p-0">
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-    <div><h1 class="h3 mb-1">Account Management</h1>
-      <p class="text-muted mb-0">View Bank A accounts and verify Bank B destination accounts.</p></div>
-    <button type="button" class="btn btn-outline-primary" id="refreshAccounts">Refresh</button>
-  </div>
-  <div id="accountAlert" class="alert d-none" role="alert"></div>
-  <div class="row">
-    <div class="col-md-4"><div class="card"><div class="card-body">
-      <div class="text-muted small">Total Bank A Accounts</div><div class="h2 mb-0" id="totalAccounts">—</div>
-    </div></div></div>
-    <div class="col-md-4"><div class="card"><div class="card-body">
-      <div class="text-muted small">Active Accounts</div><div class="h2 mb-0 text-success" id="activeAccounts">—</div>
-    </div></div></div>
-    <div class="col-md-4"><div class="card"><div class="card-body">
-      <div class="text-muted small">Currencies</div><div class="h2 mb-0" id="currencyCount">—</div>
-    </div></div></div>
-  </div>
-  <div class="card">
-    <div class="card-header"><h5 class="card-title mb-0">My Bank A Accounts</h5></div>
-    <div class="card-body"><div class="table-responsive">
-      <table class="table table-hover align-middle">
-        <thead><tr><th>Account number</th><th>Account name</th><th>Currency</th>
-          <th class="text-end">Balance</th><th>Status</th></tr></thead>
-        <tbody id="sourceAccountRows"><tr><td colspan="5" class="text-center text-muted py-4">Loading accounts...</td></tr></tbody>
-      </table>
-    </div><small class="text-muted">Read-only account information retrieved from Bank A.</small></div>
-  </div>
-  <div class="card">
-    <div class="card-header"><h5 class="card-title mb-0">Verify Bank B Destination Account</h5></div>
-    <div class="card-body">
-      <form id="destinationLookupForm" class="row g-2">
-        <div class="col-md-8"><label class="form-label" for="destinationAccountNumber">Destination account number</label>
-          <input class="form-control" id="destinationAccountNumber" placeholder="Enter Bank B account number" required></div>
-        <div class="col-md-4 d-flex align-items-end"><button class="btn btn-primary w-100" id="verifyDestinationButton">Verify account</button></div>
-      </form>
-      <div id="destinationResult" class="mt-3"></div>
+
+{% block page_title %}
+<div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
+    <div>
+        <h1 class="h3 mb-1">Account Management</h1>
+        <p class="text-muted mb-0">
+            Register customer accounts and manage accounts across Bank A and Bank B.
+        </p>
     </div>
-  </div>
+    <button class="btn btn-outline-primary" id="refreshAccounts">
+        <i data-feather="refresh-cw"></i> Refresh
+    </button>
 </div>
 {% endblock %}
+
+{% block content %}
+
+<div id="accountAlert" class="alert d-none"></div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <small class="text-muted">Total Accounts</small>
+                <h2 id="totalAccounts">—</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <small class="text-muted">Active Accounts</small>
+                <h2 class="text-success" id="activeAccounts">—</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <small class="text-muted">Frozen Accounts</small>
+                <h2 class="text-warning" id="frozenAccounts">—</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white py-3">
+        <h5 class="mb-0">
+            <i data-feather="user-plus" class="me-2"></i>
+            Register Bank Account
+        </h5>
+        <small class="text-muted">
+            Select an existing customer and create an account in either bank.
+        </small>
+    </div>
+
+    <div class="card-body">
+        <form id="accountForm">
+            {% csrf_token %}
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Registered Customer *</label>
+                    <select class="form-select" id="customerId" required>
+                        <option value="">Loading customers...</option>
+                    </select>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Bank *</label>
+                    <select class="form-select" id="bank" required>
+                        <option value="">Select bank</option>
+                        <option value="BANK_A">Bank A</option>
+                        <option value="BANK_B">Bank B</option>
+                    </select>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Account Number *</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control"
+                               id="accountNumber"
+                               placeholder="e.g. BANKA100001"
+                               maxlength="30" required>
+                        <button type="button" class="btn btn-outline-secondary"
+                                id="generateAccountNumber">
+                            Generate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Currency *</label>
+                    <select class="form-select" id="currency" required>
+                        <option value="RWF">RWF</option>
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Opening Balance *</label>
+                    <input type="number" class="form-control"
+                           id="initialBalance" value="0.00"
+                           min="0" step="0.01" required>
+                </div>
+            </div>
+
+            <div class="alert alert-info mt-3 mb-0">
+                <i data-feather="info" class="me-2"></i>
+                The account will be created by the selected bank and linked
+                to the selected customer's unique ID.
+            </div>
+
+            <div class="d-flex justify-content-end mt-3">
+                <button type="submit" class="btn btn-primary"
+                        id="createAccountButton">
+                    <i data-feather="plus-circle" class="me-1"></i>
+                    Create Account
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white py-3">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h5 class="mb-0">Registered Bank Accounts</h5>
+            <input type="search" id="accountSearch"
+                   class="form-control" style="max-width:300px"
+                   placeholder="Search account or customer...">
+        </div>
+    </div>
+
+    <div class="card-body">
+        <div class="d-flex gap-2 mb-3">
+            <button class="btn btn-sm btn-primary bank-filter"
+                    data-bank="ALL">All Banks</button>
+            <button class="btn btn-sm btn-outline-primary bank-filter"
+                    data-bank="BANK_A">Bank A</button>
+            <button class="btn btn-sm btn-outline-primary bank-filter"
+                    data-bank="BANK_B">Bank B</button>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Account Number</th>
+                        <th>Customer</th>
+                        <th>Bank</th>
+                        <th>Currency</th>
+                        <th>Balance</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="accountsTableBody">
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            Loading accounts...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
 {% block extra_js %}
-<script src="{% static 'js/account_management.js' %}"></script>
+{{ block.super }}
+<script>
+(function () {
+    "use strict";
+
+    const API_URL = "{% url 'admin-account-management-api' %}";
+
+    let accounts = [];
+    let currentBank = "ALL";
+    let busy = false;
+
+    const $ = id => document.getElementById(id);
+
+    function csrfToken() {
+        return document.querySelector(
+            "#accountForm [name=csrfmiddlewaretoken]"
+        )?.value || "";
+    }
+
+    async function api(url, options = {}) {
+        const response = await fetch(url, {
+            credentials: "same-origin",
+            ...options,
+            headers: {
+                "Accept": "application/json",
+                "X-CSRFToken": csrfToken(),
+                ...(options.headers || {})
+            }
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(
+                data.message || data.error ||
+                `Request failed (${response.status}).`
+            );
+        }
+
+        return data;
+    }
+
+    function alertMessage(message, type = "success") {
+        const box = $("accountAlert");
+        box.className = `alert alert-${type}`;
+        box.textContent = message;
+    }
+
+    function clearAlert() {
+        $("accountAlert").className = "alert d-none";
+        $("accountAlert").textContent = "";
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, char => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#039;"
+        })[char]);
+    }
+
+    function renderCustomers(customers) {
+        const select = $("customerId");
+        select.innerHTML = '<option value="">Select customer</option>';
+
+        customers.forEach(customer => {
+            const option = document.createElement("option");
+            option.value = customer.customer_id;
+            option.textContent =
+                `${customer.username} (${customer.customer_id})`;
+            option.dataset.username = customer.username;
+            select.appendChild(option);
+        });
+    }
+
+    function renderSummary(summary) {
+        $("totalAccounts").textContent = summary.total_accounts ?? 0;
+        $("activeAccounts").textContent = summary.active_accounts ?? 0;
+        $("frozenAccounts").textContent = summary.frozen_accounts ?? 0;
+    }
+
+    function renderAccounts() {
+        const body = $("accountsTableBody");
+        const search = $("accountSearch").value.toLowerCase().trim();
+
+        const filtered = accounts.filter(account => {
+            const matchesBank =
+                currentBank === "ALL" || account.bank === currentBank;
+
+            const matchesSearch = [
+                account.account_number,
+                account.customer_name,
+                account.owner_customer_id,
+                account.bank
+            ].some(value =>
+                String(value ?? "").toLowerCase().includes(search)
+            );
+
+            return matchesBank && matchesSearch;
+        });
+
+        if (!filtered.length) {
+            body.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        No accounts found.
+                    </td>
+                </tr>`;
+            return;
+        }
+
+        body.innerHTML = filtered.map(account => {
+            const status = account.status || "UNKNOWN";
+            const color = status === "ACTIVE" ? "success" :
+                status === "FROZEN" ? "warning" : "secondary";
+
+            return `
+                <tr>
+                    <td class="fw-semibold">
+                        ${escapeHtml(account.account_number)}
+                    </td>
+                    <td>
+                        ${escapeHtml(account.customer_name)}
+                        <div class="small text-muted">
+                            ${escapeHtml(account.owner_customer_id || "Not linked")}
+                        </div>
+                    </td>
+                    <td>${escapeHtml(account.bank)}</td>
+                    <td>${escapeHtml(account.currency)}</td>
+                    <td>
+                        ${escapeHtml(account.balance)}
+                        ${escapeHtml(account.currency)}
+                    </td>
+                    <td>
+                        <span class="badge bg-${color}">
+                            ${escapeHtml(status)}
+                        </span>
+                    </td>
+                </tr>`;
+        }).join("");
+    }
+
+    async function loadData() {
+        $("accountsTableBody").innerHTML = `
+            <tr><td colspan="6" class="text-center py-4">
+                Loading accounts...
+            </td></tr>`;
+
+        try {
+            const data = await api(API_URL);
+
+            renderCustomers(data.customers || []);
+            accounts = data.accounts || [];
+            renderSummary(data.summary || {});
+            renderAccounts();
+
+            const errors = Object.entries(data.errors || {});
+            if (errors.length) {
+                alertMessage(
+                    "Some bank services are unavailable: " +
+                    errors.map(([bank]) => bank).join(", "),
+                    "warning"
+                );
+            } else {
+                clearAlert();
+            }
+        } catch (error) {
+            $("accountsTableBody").innerHTML = `
+                <tr><td colspan="6" class="text-center text-danger py-4">
+                    ${escapeHtml(error.message)}
+                </td></tr>`;
+            alertMessage(error.message, "danger");
+        }
+    }
+
+    $("generateAccountNumber").addEventListener("click", () => {
+        const bank = $("bank").value;
+
+        if (!bank) {
+            alertMessage("Select a bank first.", "warning");
+            return;
+        }
+
+        const prefix = bank === "BANK_A" ? "BANKA" : "BANKB";
+        const randomPart = Date.now().toString().slice(-8);
+        $("accountNumber").value = prefix + randomPart;
+    });
+
+    $("bank").addEventListener("change", () => {
+        $("accountNumber").value = "";
+    });
+
+    $("accountSearch").addEventListener("input", renderAccounts);
+
+    document.querySelectorAll(".bank-filter").forEach(button => {
+        button.addEventListener("click", () => {
+            currentBank = button.dataset.bank;
+
+            document.querySelectorAll(".bank-filter").forEach(item => {
+                item.classList.toggle("btn-primary", item === button);
+                item.classList.toggle("btn-outline-primary", item !== button);
+            });
+
+            renderAccounts();
+        });
+    });
+
+    $("refreshAccounts").addEventListener("click", loadData);
+
+    $("accountForm").addEventListener("submit", async event => {
+        event.preventDefault();
+        clearAlert();
+
+        if (busy) return;
+
+        const customerId = $("customerId").value;
+        const bank = $("bank").value;
+        const accountNumber = $("accountNumber").value.trim();
+        const balance = $("initialBalance").value;
+
+        if (!customerId || !bank || !accountNumber) {
+            alertMessage(
+                "Select a customer and bank and enter an account number.",
+                "warning"
+            );
+            return;
+        }
+
+        if (!/^\d+(\.\d{1,2})?$/.test(balance) ||
+            !Number.isFinite(Number(balance)) ||
+            Number(balance) < 0) {
+            alertMessage("Enter a valid non-negative opening balance.", "warning");
+            return;
+        }
+
+        const payload = {
+            customer_id: customerId,
+            bank: bank,
+            account_number: accountNumber,
+            currency: $("currency").value,
+            initial_balance: balance
+        };
+
+        busy = true;
+        const button = $("createAccountButton");
+        button.disabled = true;
+        button.textContent = "Creating account...";
+
+        try {
+            const result = await api(API_URL, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            });
+
+            alertMessage(
+                result.message || "Account created successfully.",
+                "success"
+            );
+
+            $("accountForm").reset();
+            $("initialBalance").value = "0.00";
+
+            await loadData();
+
+        } catch (error) {
+            alertMessage(error.message, "danger");
+        } finally {
+            busy = false;
+            button.disabled = false;
+            button.innerHTML =
+                '<i data-feather="plus-circle" class="me-1"></i> Create Account';
+
+            if (window.feather) feather.replace();
+        }
+    });
+
+    loadData();
+})();
+</script>
 {% endblock %}

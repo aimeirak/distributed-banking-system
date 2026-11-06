@@ -1,0 +1,296 @@
+
+{% extends "transfers/base.html" %}
+{% load static %}
+
+{% block title %}Register Customer | Distributed Banking{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+
+<style>
+    .registration-wrapper {
+        width: 100%;
+        max-width: 1200px;
+        margin: 35px auto;
+        padding: 0 20px;
+    }
+
+    .registration-card {
+        width: 100%;
+        background: #fff;
+        border: 1px solid #e8edf3;
+        border-radius: 16px;
+        box-shadow: 0 8px 30px rgba(31, 45, 61, .07);
+        overflow: hidden;
+    }
+
+    .registration-header {
+        padding: 35px 45px;
+        background: #f8faff;
+        border-bottom: 1px solid #e8edf3;
+    }
+
+    .registration-header h3 {
+        color: #243b53;
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 8px;
+    }
+
+    .registration-header p {
+        color: #8492a6;
+        font-size: 15px;
+        margin: 0;
+    }
+
+    .registration-body {
+        padding: 45px;
+    }
+
+    .registration-body .form-label {
+        font-weight: 600;
+        color: #344767;
+        font-size: 14px;
+        margin-bottom: 9px;
+    }
+
+    .registration-body .form-control {
+        min-height: 50px;
+        padding: 12px 15px;
+        font-size: 15px;
+        border-radius: 8px;
+        border: 1px solid #dce3eb;
+    }
+
+    .registration-body .form-control:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, .12);
+    }
+
+    .registration-body .mb-3 {
+        margin-bottom: 28px !important;
+    }
+
+    .registration-icon {
+        width: 55px;
+        height: 55px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        background: #eaf1ff;
+        color: #2563eb;
+        margin-right: 16px;
+        flex-shrink: 0;
+    }
+
+    .registration-icon svg {
+        width: 25px;
+        height: 25px;
+    }
+
+    .registration-footer {
+        padding: 25px 45px;
+        background: #f8faff;
+        border-top: 1px solid #e8edf3;
+    }
+
+    .registration-footer .btn {
+        min-height: 45px;
+        padding: 10px 25px;
+        font-size: 14px;
+        border-radius: 8px;
+    }
+
+    .registration-body .alert {
+        padding: 16px 20px;
+        font-size: 14px;
+        border-radius: 8px;
+    }
+
+    @media (min-width: 1400px) {
+        .registration-wrapper {
+            max-width: 1200px;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .registration-wrapper {
+            margin: 20px auto;
+            padding: 0 10px;
+        }
+
+        .registration-header,
+        .registration-body,
+        .registration-footer {
+            padding: 22px;
+        }
+    }
+
+    @media (max-width: 576px) {
+        .registration-header h3 {
+            font-size: 20px;
+        }
+
+        .registration-footer {
+            gap: 12px;
+        }
+
+        .registration-footer .btn {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+
+{% block page_title %}
+<div class="d-flex justify-content-between align-items-center flex-wrap mb-4">
+    <div>
+        <h1 class="h3 mb-1">Customer Registration</h1>
+        <p class="text-muted mb-0">
+            Create a new customer profile in the banking system.
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block content %}
+
+<div class="registration-wrapper">
+
+    <div class="registration-card">
+
+        <div class="registration-header">
+            <div class="d-flex align-items-center">
+
+                <div class="registration-icon">
+                    <i data-feather="user-plus"></i>
+                </div>
+
+                <div>
+                    <h3 class="h4">Create Customer Account</h3>
+                    <p>Enter the customer's information below.</p>
+                </div>
+
+            </div>
+        </div>
+
+        <form method="POST" id="registerForm">
+            {% csrf_token %}
+
+            <div class="registration-body">
+
+                <div class="row">
+
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Username *</label>
+                        <input type="text"
+                               name="username"
+                               class="form-control"
+                               placeholder="Enter username"
+                               value="{{ request.POST.username|default:'' }}"
+                               required>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Email Address *</label>
+                        <input type="email"
+                               name="email"
+                               class="form-control"
+                               placeholder="Enter email address"
+                               value="{{ request.POST.email|default:'' }}"
+                               required>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Phone Number</label>
+                        <input type="tel"
+                               name="phone_number"
+                               class="form-control"
+                               placeholder="+250788123456"
+                               value="{{ request.POST.phone_number|default:'' }}">
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Password *</label>
+                        <input type="password"
+                               name="password"
+                               id="password"
+                               class="form-control"
+                               placeholder="Minimum 8 characters"
+                               minlength="8"
+                               required>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Confirm Password *</label>
+                        <input type="password"
+                               id="confirm_password"
+                               class="form-control"
+                               placeholder="Confirm password"
+                               required>
+
+                        <small class="text-danger" id="passwordError"></small>
+                    </div>
+
+                </div>
+
+                <div class="alert alert-info mt-3 mb-0">
+                    <i data-feather="info" class="me-2"></i>
+                    A unique customer ID will be generated automatically
+                    after successful registration.
+                </div>
+
+            </div>
+
+            <div class="registration-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+
+                <a href="{% url 'dashboard' %}"
+                   class="btn btn-light">
+                    Cancel
+                </a>
+
+                <button type="submit" class="btn btn-primary">
+                    <i data-feather="user-plus" class="me-1"></i>
+                    Register Customer
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+{% endblock %}
+
+
+{% block extra_js %}
+{{ block.super }}
+
+<script>
+document.getElementById("registerForm").addEventListener("submit", function(event) {
+
+    const password = document.getElementById("password").value;
+    const confirmPassword = document.getElementById("confirm_password").value;
+    const error = document.getElementById("passwordError");
+
+    error.textContent = "";
+
+    if (password !== confirmPassword) {
+        event.preventDefault();
+        error.textContent = "Passwords do not match.";
+        return;
+    }
+
+    if (password.length < 8) {
+        event.preventDefault();
+        error.textContent = "Password must contain at least 8 characters.";
+    }
+});
+</script>
+
+{% endblock %}
