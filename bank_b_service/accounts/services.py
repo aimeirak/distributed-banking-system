@@ -13,7 +13,8 @@ def create_account(
     account_number,
     customer_name,
     initial_balance=Decimal("0.00"),
-    currency="RWF"
+    currency="RWF",
+    owner_customer_id=None
 ):
     initial_balance = Decimal(str(initial_balance))
 
@@ -34,7 +35,8 @@ def create_account(
         account_number=account_number,
         customer_name=customer_name,
         balance=initial_balance,
-        currency=currency
+        currency=currency,
+        owner_customer_id=owner_customer_id
     )
 
 

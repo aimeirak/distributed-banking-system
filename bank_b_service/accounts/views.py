@@ -29,7 +29,8 @@ from accounts.permissions import (
 
 class BankAccountListCreateAPIView(APIView):
 
-    permission_classes = [IsAccountAdministrator]
+    authentication_classes = []
+    permission_classes = [IsInternalService]
 
     def get(self, request):
         accounts = BankAccount.objects.all()
@@ -54,7 +55,8 @@ class BankAccountListCreateAPIView(APIView):
                 ),
                 currency=serializer.validated_data.get(
                     'currency', 'RWF'
-                )
+                ),
+                owner_customer_id=request.data.get("owner_customer_id"),
             )
 
             return Response(
@@ -206,3 +208,22 @@ class BankAccountLookupAPIView(APIView):
             )
         
         return render(request, "transfers/account_management.html")
+    
+class CustomerBankAccountsAPIView(APIView):
+    permission_classes = [IsInternalService]
+
+    def get(self, request, customer_id):
+
+        accounts = BankAccount.objects.filter(
+            owner_customer_id=customer_id
+        ).order_by("-created_at")
+
+        serializer = BankAccountSerializer(
+            accounts,
+            many=True
+        )
+
+        return Response({
+            "customer_id": str(customer_id),
+            "accounts": serializer.data
+        }, status=status.HTTP_200_OK)

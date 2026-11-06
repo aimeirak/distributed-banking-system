@@ -1,0 +1,390 @@
+{% extends "transfers/base.html" %}
+{% load static %}
+
+{% block title %}My Banking | Distributed Banking{% endblock %}
+
+{% block extra_css %}
+<style>
+.banking-header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:22px}
+.banking-subtitle{color:#718096;font-size:13px}
+.banking-card{background:#fff;border:1px solid #e8edf3;border-radius:14px;padding:20px;height:100%;box-shadow:0 4px 16px rgba(15,23,42,.035)}
+.banking-stat-label{font-size:12px;color:#718096;margin-bottom:8px}
+.banking-stat-value{font-size:25px;font-weight:700;color:#172b4d}
+.banking-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#eff6ff;color:#2563eb;font-size:19px}
+.action-card{border:1px solid #e5eaf1;border-radius:13px;background:#fff;padding:18px;cursor:pointer;transition:.2s;height:100%}
+.action-card:hover,.action-card.active{border-color:#2563eb;box-shadow:0 5px 18px rgba(37,99,235,.09);transform:translateY(-2px)}
+.action-card .action-icon{font-size:22px;margin-bottom:12px;color:#2563eb}
+.action-card small{color:#718096}
+.form-panel{background:#fff;border:1px solid #e8edf3;border-radius:14px;padding:22px}
+.account-balance{font-weight:700;font-size:16px;color:#172b4d}
+.table thead th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#718096;background:#f8fafc;border-bottom:0}
+.status-pill{padding:5px 9px;border-radius:20px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534}
+@media(max-width:767px){.banking-header{align-items:flex-start;flex-direction:column}.banking-stat-value{font-size:21px}}
+</style>
+{% endblock %}
+
+{% block page_title %}
+<div class="banking-header">
+  <div>
+    <h2 class="mb-1">My Banking</h2>
+    <div class="banking-subtitle">Manage your accounts, deposits and cash withdrawals.</div>
+  </div>
+  <button class="btn btn-outline-primary" id="refreshAccounts"><i data-feather="refresh-cw" class="me-1"></i> Refresh</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="pageAlert"></div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="banking-card">
+      <div class="d-flex justify-content-between">
+        <div><div class="banking-stat-label">Total available balance</div><div class="banking-stat-value" id="totalBalance">Loading...</div><small class="text-muted">Across your connected banks</small></div>
+        <div class="banking-icon"><i data-feather="wallet"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="banking-card">
+      <div class="d-flex justify-content-between">
+        <div><div class="banking-stat-label">My accounts</div><div class="banking-stat-value" id="accountCount">—</div><small class="text-muted">Bank A and Bank B</small></div>
+        <div class="banking-icon"><i data-feather="credit-card"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="banking-card">
+      <div class="d-flex justify-content-between">
+        <div><div class="banking-stat-label">Active accounts</div><div class="banking-stat-value" id="activeCount">—</div><small class="text-muted">Ready for transactions</small></div>
+        <div class="banking-icon"><i data-feather="check-circle"></i></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h5 class="mb-3">What would you like to do?</h5>
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <button class="action-card w-100 text-start" type="button" data-type="CASH_DEPOSIT">
+      <div class="action-icon"><i data-feather="download"></i></div><strong>Cash deposit</strong><br><small>Deposit cash into your account</small>
+    </button>
+  </div>
+  <div class="col-md-4">
+    <button class="action-card w-100 text-start" type="button" data-type="MOBILE_MONEY_DEPOSIT">
+      <div class="action-icon"><i data-feather="smartphone"></i></div><strong>Mobile money deposit</strong><br><small>Simulated mobile money deposit</small>
+    </button>
+  </div>
+  <div class="col-md-4">
+    <button class="action-card w-100 text-start" type="button" data-type="CASH_WITHDRAWAL">
+      <div class="action-icon"><i data-feather="upload"></i></div><strong>Cash withdrawal</strong><br><small>Withdraw available funds</small>
+    </button>
+  </div>
+</div>
+
+<div class="form-panel mb-4" id="transactionPanel">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div><h5 class="mb-1" id="formTitle">Make a transaction</h5><small class="text-muted">Choose your account and enter the transaction details.</small></div>
+    <span class="badge bg-light text-dark" id="transactionTypeBadge">Select transaction</span>
+  </div>
+  <form id="transactionForm">
+    {% csrf_token %}
+    <input type="hidden" id="transactionType" name="transaction_type">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Account</label>
+        <select class="form-select" id="accountSelect" required>
+          <option value="">Loading your accounts...</option>
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Amount</label>
+        <div class="input-group"><input class="form-control" id="amount" type="number" min="0.01" step="0.01" placeholder="Enter amount" required><span class="input-group-text" id="currencyLabel">RWF</span></div>
+      </div>
+      <div class="col-12">
+        <label class="form-label">Description / reference (optional)</label>
+        <input class="form-control" id="description" maxlength="255" placeholder="e.g. Cash deposit at branch">
+      </div>
+      <div class="col-12 d-flex justify-content-end gap-2">
+        <button class="btn btn-light" type="reset">Clear</button>
+        <button class="btn btn-primary" type="submit" id="submitTransaction" disabled>Continue</button>
+      </div>
+    </div>
+  </form>
+  <div class="alert alert-info mt-3 mb-0 small">Mobile money is simulated for this academic project. Do not use real payment details.</div>
+</div>
+
+<div class="banking-card mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-3"><h5 class="mb-0">My Accounts</h5><span class="text-muted small" id="accountLoadState">Loading...</span></div>
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead><tr><th>Bank</th><th>Account number</th><th>Currency</th><th>Balance</th><th>Status</th></tr></thead>
+      <tbody id="accountsTable"><tr><td colspan="5" class="text-center text-muted py-4">Loading accounts...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+<div class="card mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+            <h5 class="mb-1">Transaction History</h5>
+            <small class="text-muted">
+                Your recent deposits and withdrawals
+            </small>
+        </div>
+
+        <button class="btn btn-outline-primary btn-sm"
+                onclick="loadTransactions()">
+            <i data-feather="refresh-cw"></i> Refresh
+        </button>
+    </div>
+
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Reference</th>
+                        <th>Bank</th>
+                        <th>Account</th>
+                        <th>Transaction Type</th>
+                        <th>Amount</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+
+                <tbody id="transactionTableBody">
+                    <tr>
+                        <td colspan="6" class="text-center">
+                            Loading transactions...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const API_URL = "{% url 'customer-banking-api' %}";
+  const accountsTable = document.getElementById("accountsTable");
+  const accountSelect = document.getElementById("accountSelect");
+  const form = document.getElementById("transactionForm");
+  const submitButton = document.getElementById("submitTransaction");
+  let accounts = [];
+  let selectedType = "";
+
+  function csrfToken() {
+    return document.querySelector("[name=csrfmiddlewaretoken]")?.value || "";
+  }
+  function money(value, currency) {
+    const number = Number(value || 0);
+    return `${currency || "RWF"} ${number.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  }
+  function showAlert(message, type="danger") {
+    document.getElementById("pageAlert").innerHTML =
+      `<div class="alert alert-${type} alert-dismissible fade show" role="alert">${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
+  function accountId(a) { return a.id || a.account_id || ""; }
+  function accountNumber(a) { return a.account_number || a.accountNumber || accountId(a); }
+  function balance(a) { return a.balance ?? a.current_balance ?? a.available_balance ?? 0; }
+  function currency(a) { return a.currency || "RWF"; }
+  function statusText(a) { return a.status || "UNKNOWN"; }
+
+  async function loadAccounts() {
+    document.getElementById("accountLoadState").textContent = "Refreshing...";
+    try {
+      const response = await fetch(API_URL, {headers:{"X-Requested-With":"XMLHttpRequest"}});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Unable to load accounts.");
+      accounts = data.accounts || [];
+      accountSelect.innerHTML = '<option value="">Select an account</option>';
+      accounts.forEach(a => {
+        const option = document.createElement("option");
+        option.value = `${a.bank_code}|${accountId(a)}`;
+        option.textContent = `${a.bank_code.replace("_"," ")} — ${accountNumber(a)} (${money(balance(a),currency(a))})`;
+        option.dataset.currency = currency(a);
+        accountSelect.appendChild(option);
+      });
+      accountsTable.innerHTML = accounts.length ? accounts.map(a => `
+        <tr>
+          <td><strong>${a.bank_code.replace("_"," ")}</strong></td>
+          <td>${accountNumber(a)}</td>
+          <td>${currency(a)}</td>
+          <td class="account-balance">${money(balance(a),currency(a))}</td>
+          <td><span class="status-pill">${statusText(a)}</span></td>
+        </tr>`).join("") : '<tr><td colspan="5" class="text-center text-muted py-4">No accounts are linked to your customer profile.</td></tr>';
+      document.getElementById("accountCount").textContent = accounts.length;
+      document.getElementById("activeCount").textContent = accounts.filter(a => statusText(a).toUpperCase()==="ACTIVE").length;
+      const totals = {};
+      accounts.forEach(a => { const c=currency(a); totals[c]=(totals[c]||0)+Number(balance(a)||0); });
+      document.getElementById("totalBalance").textContent = Object.keys(totals).length
+        ? Object.entries(totals).map(([c,v])=>money(v,c)).join(" + ")
+        : money(0,"RWF");
+      document.getElementById("accountLoadState").textContent = "Updated";
+      submitButton.disabled = accounts.length === 0 || !selectedType;
+      if (data.errors && Object.keys(data.errors).length) {
+        showAlert(Object.values(data.errors).join(" "), "warning");
+      }
+    } catch (error) {
+      document.getElementById("accountLoadState").textContent = "Unavailable";
+      accountsTable.innerHTML = `<tr><td colspan="5" class="text-danger text-center py-4">${error.message}</td></tr>`;
+      accountSelect.innerHTML = '<option value="">Accounts unavailable</option>';
+      showAlert(error.message);
+    }
+  }
+
+  document.querySelectorAll("[data-type]").forEach(button => {
+    button.addEventListener("click", () => {
+      selectedType = button.dataset.type;
+      document.getElementById("transactionType").value = selectedType;
+      document.querySelectorAll(".action-card").forEach(x => x.classList.remove("active"));
+      button.classList.add("active");
+      const labels = {
+        CASH_DEPOSIT:"Cash deposit",
+        MOBILE_MONEY_DEPOSIT:"Mobile money deposit",
+        CASH_WITHDRAWAL:"Cash withdrawal"
+      };
+      document.getElementById("formTitle").textContent = labels[selectedType];
+      document.getElementById("transactionTypeBadge").textContent = labels[selectedType];
+      document.getElementById("description").placeholder =
+        selectedType === "MOBILE_MONEY_DEPOSIT" ? "Mobile money payment reference (simulation)" : "Add a transaction description";
+      submitButton.disabled = accounts.length === 0;
+      document.getElementById("transactionPanel").scrollIntoView({behavior:"smooth",block:"start"});
+    });
+  });
+
+  accountSelect.addEventListener("change", () => {
+    const selected = accountSelect.selectedOptions[0];
+    document.getElementById("currencyLabel").textContent = selected?.dataset.currency || "RWF";
+  });
+
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (!selectedType) return showAlert("Choose a transaction type first.", "warning");
+    const selected = accountSelect.value.split("|");
+    if (selected.length !== 2 || !selected[1]) return showAlert("Select an account.");
+    const amount = document.getElementById("amount").value;
+    if (!amount || Number(amount) <= 0) return showAlert("Enter an amount greater than zero.");
+    const description = document.getElementById("description").value.trim();
+    const transactionName = selectedType.replaceAll("_"," ").toLowerCase();
+    if (!window.confirm(`Confirm ${transactionName} of ${money(amount,document.getElementById("currencyLabel").textContent)}?`)) return;
+
+    submitButton.disabled = true;
+    submitButton.textContent = "Processing...";
+    const payload = {
+      bank_code:selected[0], account_id:selected[1], transaction_type:selectedType,
+      amount, description, transaction_reference:crypto.randomUUID()
+    };
+    try {
+      const response = await fetch(API_URL, {
+        method:"POST",
+        headers:{"Content-Type":"application/json","X-CSRFToken":csrfToken(),"X-Requested-With":"XMLHttpRequest"},
+        body:JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        const message = data.message || data.detail || data.error || JSON.stringify(data);
+        throw new Error(typeof message === "string" ? message : JSON.stringify(message));
+      }
+      showAlert(data.message || "Transaction completed.", "success");
+      form.reset();
+      selectedType = "";
+      document.querySelectorAll(".action-card").forEach(x => x.classList.remove("active"));
+      document.getElementById("transactionTypeBadge").textContent = "Select transaction";
+      document.getElementById("formTitle").textContent = "Make a transaction";
+      await loadAccounts();
+    } catch (error) {
+      showAlert(error.message);
+    } finally {
+      submitButton.textContent = "Continue";
+      submitButton.disabled = !selectedType || accounts.length === 0;
+    }
+  });
+
+  document.getElementById("refreshAccounts").addEventListener("click", loadAccounts);
+  loadAccounts();
+})();
+
+async function loadTransactions() {
+    const tbody = document.getElementById("transactionTableBody");
+
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="6" class="text-center">
+                Loading transactions...
+            </td>
+        </tr>
+    `;
+
+    try {
+        const response = await fetch(
+            "{% url 'customer-banking-transactions-api' %}",
+            {
+                method: "GET",
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest"
+                }
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || "Failed to load transactions.");
+        }
+
+        const transactions = data.transactions || [];
+
+        if (transactions.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-muted">
+                        No transactions found.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = transactions.map(transaction => {
+            const type = transaction.transaction_type || "";
+            const isDeposit = type.includes("DEPOSIT");
+
+            const amount = Number(transaction.amount || 0);
+
+            return `
+                <tr>
+                    <td>${transaction.transaction_reference || "-"}</td>
+                    <td>${transaction.bank_code || "-"}</td>
+                    <td>${transaction.account_number || "-"}</td>
+                    <td>${type.replaceAll("_", " ")}</td>
+                    <td class="${isDeposit ? "text-success" : "text-danger"}">
+                        ${isDeposit ? "+" : "-"} ${amount.toLocaleString()}
+                    </td>
+                    <td>${transaction.created_at || "-"}</td>
+                </tr>
+            `;
+        }).join("");
+
+        if (window.feather) {
+            feather.replace();
+        }
+
+    } catch (error) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center text-danger">
+                    ${error.message}
+                </td>
+            </tr>
+        `;
+    }
+}
+
+document.addEventListener("DOMContentLoaded", loadTransactions);
+</script>
+{% endblock %}

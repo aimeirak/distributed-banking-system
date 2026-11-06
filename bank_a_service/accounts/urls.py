@@ -10,7 +10,12 @@ from accounts.views import (
     TransferStatusAPIView,
     VerifyAccountOwnershipAPIView,
     CustomerBankAccountsAPIView,
+    CashDepositAPIView,
+    MobileMoneyDepositAPIView,
+    CashWithdrawalAPIView,
+    CustomerAccountTransactionsAPIView
 )
+
 
 from ledger.views import LedgerEntriesAPIView
 
@@ -25,4 +30,8 @@ urlpatterns = [
     path("internal/accounts/verify-ownership/",VerifyAccountOwnershipAPIView.as_view(), name="verify-account-ownership"),
     path('accounts/customer/<uuid:customer_id>/',CustomerBankAccountsAPIView.as_view(),name='customer-bank-accounts'),
     path("ledger/entries/", LedgerEntriesAPIView.as_view(), name="ledger-entries"),
+    path("accounts/deposits/cash/", CashDepositAPIView.as_view(), name="cash-deposit"),
+    path("accounts/deposits/mobile-money/",MobileMoneyDepositAPIView.as_view(),name="mobile-money-deposit",),
+    path("accounts/withdrawals/cash/",CashWithdrawalAPIView.as_view(),name="cash-withdrawal",),
+    path("transactions/customer/<uuid:customer_id>/",CustomerAccountTransactionsAPIView.as_view(),name="customer-account-transactions"),
 ]

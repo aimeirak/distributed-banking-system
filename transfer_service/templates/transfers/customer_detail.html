@@ -1,0 +1,386 @@
+
+{% extends "transfers/base.html" %}
+{% load static %}
+
+{% block title %}Customer Details | Distributed Banking{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+
+<style>
+    .detail-card {
+        background: #fff;
+        border: 1px solid #e8edf3;
+        border-radius: 12px;
+        padding: 24px;
+        height: 100%;
+    }
+
+    .detail-label {
+        font-size: 12px;
+        color: #8492a6;
+        text-transform: uppercase;
+        font-weight: 600;
+        margin-bottom: 7px;
+    }
+
+    .detail-value {
+        font-size: 16px;
+        color: #243b53;
+        font-weight: 600;
+        overflow-wrap: anywhere;
+    }
+
+    .detail-section {
+        background: #fff;
+        border: 1px solid #e8edf3;
+        border-radius: 12px;
+        margin-bottom: 25px;
+        overflow: hidden;
+    }
+
+    .detail-section-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid #e8edf3;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .detail-section-body {
+        padding: 24px;
+    }
+
+    .account-card {
+        border: 1px solid #e8edf3;
+        border-radius: 10px;
+        padding: 18px;
+        margin-bottom: 12px;
+    }
+
+    .account-number {
+        font-family: monospace;
+        font-weight: 700;
+        color: #2563eb;
+    }
+
+    .customer-profile-avatar {
+        width: 65px;
+        height: 65px;
+        border-radius: 50%;
+        background: #eaf1ff;
+        color: #2563eb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 25px;
+        font-weight: 700;
+    }
+</style>
+{% endblock %}
+
+
+{% block page_title %}
+<div class="d-flex justify-content-between align-items-center flex-wrap mb-4">
+
+    <div>
+        <h1 class="h3 mb-1">Customer Details</h1>
+        <p class="text-muted mb-0">
+            Customer profile, bank accounts and transfer activities.
+        </p>
+    </div>
+
+    <a href="{% url 'customer-management' %}"
+       class="btn btn-light">
+        <i data-feather="arrow-left" class="me-1"></i>
+        Back to Customers
+    </a>
+
+</div>
+{% endblock %}
+
+
+{% block content %}
+
+<!-- Customer profile -->
+<div class="detail-section">
+
+    <div class="detail-section-header">
+        <div class="d-flex align-items-center gap-3">
+
+            <div class="customer-profile-avatar">
+                {{ customer.user.username|first|upper }}
+            </div>
+
+            <div>
+                <h4 class="mb-1">
+                    {{ customer.user.username }}
+                </h4>
+
+                <span class="badge bg-info">
+                    {{ customer.get_role_display }}
+                </span>
+
+                {% if customer.user.is_active %}
+                    <span class="badge bg-success">Active</span>
+                {% else %}
+                    <span class="badge bg-danger">Inactive</span>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+
+    <div class="detail-section-body">
+
+        <div class="row g-4">
+
+            <div class="col-md-4">
+                <div class="detail-label">Customer ID</div>
+                <div class="detail-value">
+                    {{ customer.customer_id }}
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="detail-label">Username</div>
+                <div class="detail-value">
+                    {{ customer.user.username }}
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="detail-label">Email Address</div>
+                <div class="detail-value">
+                    {{ customer.user.email|default:"N/A" }}
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="detail-label">Phone Number</div>
+                <div class="detail-value">
+                    {{ customer.phone_number|default:"N/A" }}
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="detail-label">Registration Date</div>
+                <div class="detail-value">
+                    {{ customer.created_at|date:"d M Y, H:i" }}
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="detail-label">Last Profile Update</div>
+                <div class="detail-value">
+                    {{ customer.updated_at|date:"d M Y, H:i" }}
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- Transfer summary -->
+<div class="row mb-4">
+
+    <div class="col-md-6 mb-3">
+        <div class="detail-card">
+            <div class="detail-label">Total Transfers</div>
+            <div class="display-6 fw-bold">
+                {{ total_transfers }}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-3">
+        <div class="detail-card">
+            <div class="detail-label">Completed Transfers</div>
+            <div class="display-6 fw-bold text-success">
+                {{ completed_transfers }}
+            </div>
+        </div>
+    </div>
+
+</div>
+
+
+<!-- Bank A accounts -->
+<div class="detail-section">
+
+    <div class="detail-section-header">
+        <h5 class="mb-0">
+            <i data-feather="credit-card" class="me-2"></i>
+            Bank A Accounts
+        </h5>
+
+        {% if bank_a_available %}
+            <span class="badge bg-success">Connected</span>
+        {% else %}
+            <span class="badge bg-danger">Unavailable</span>
+        {% endif %}
+    </div>
+
+    <div class="detail-section-body">
+
+        {% if bank_a_error %}
+            <div class="alert alert-warning">
+                {{ bank_a_error }}
+            </div>
+        {% endif %}
+
+        {% for account in bank_a_accounts %}
+
+            <div class="account-card">
+
+                <div class="row align-items-center">
+
+                    <div class="col-md-4">
+                        <div class="detail-label">Account Number</div>
+                        <div class="account-number">
+                            {{ account.account_number }}
+                        </div>
+                    </div>
+
+                    <div class="col-md-3">
+                        <div class="detail-label">Account Holder</div>
+                        <div class="detail-value">
+                            {{ account.customer_name }}
+                        </div>
+                    </div>
+
+                    <div class="col-md-3">
+                        <div class="detail-label">Balance</div>
+                        <div class="detail-value">
+                            {{ account.balance }} {{ account.currency }}
+                        </div>
+                    </div>
+
+                    <div class="col-md-2">
+                        <div class="detail-label">Status</div>
+                        <span class="badge bg-success">
+                            {{ account.status }}
+                        </span>
+                    </div>
+
+                </div>
+
+            </div>
+
+        {% empty %}
+
+            {% if bank_a_available %}
+                <p class="text-muted mb-0">
+                    No Bank A accounts found for this customer.
+                </p>
+            {% endif %}
+
+        {% endfor %}
+
+    </div>
+
+</div>
+
+
+<!-- Bank B accounts -->
+<div class="detail-section">
+
+    <div class="detail-section-header">
+        <h5 class="mb-0">
+            <i data-feather="credit-card" class="me-2"></i>
+            Bank B Accounts
+        </h5>
+
+        <span class="badge bg-warning text-dark">
+            Integration pending
+        </span>
+    </div>
+
+    <div class="detail-section-body">
+        <div class="alert alert-info mb-0">
+            {{ bank_b_error }}
+        </div>
+    </div>
+
+</div>
+
+
+<!-- Transfer history -->
+<div class="detail-section">
+
+    <div class="detail-section-header">
+        <h5 class="mb-0">
+            <i data-feather="arrow-left-right" class="me-2"></i>
+            Recent Transfer History
+        </h5>
+    </div>
+
+    <div class="table-responsive">
+
+        <table class="table table-hover mb-0">
+
+            <thead>
+                <tr>
+                    <th>Transfer ID</th>
+                    <th>Source Account</th>
+                    <th>Destination Account</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for transfer in transfers %}
+
+                <tr>
+                    <td>
+                        <small>{{ transfer.id }}</small>
+                    </td>
+
+                    <td>
+                        {{ transfer.source_account_number }}
+                    </td>
+
+                    <td>
+                        {{ transfer.destination_account_number }}
+                    </td>
+
+                    <td class="fw-bold">
+                        {{ transfer.amount }} {{ transfer.currency }}
+                    </td>
+
+                    <td>
+                        <span class="badge bg-secondary">
+                            {{ transfer.status }}
+                        </span>
+                    </td>
+
+                    <td>
+                        {{ transfer.created_at|date:"d M Y H:i" }}
+                    </td>
+                </tr>
+
+                {% empty %}
+
+                <tr>
+                    <td colspan="6" class="text-center py-4 text-muted">
+                        This customer has no transfer history.
+                    </td>
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+{% endblock %}

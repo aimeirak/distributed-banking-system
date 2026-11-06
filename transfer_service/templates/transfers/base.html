@@ -223,6 +223,143 @@
         top: 75px;
     }
 }
+
+        /* Premium enterprise banking sidebar */
+        #sidebar.sidebar {
+            width: 260px;
+            min-width: 260px;
+            background: #101e32;
+            border-right: 1px solid #24344a;
+            box-shadow: 4px 0 20px rgba(15, 23, 42, 0.08);
+        }
+
+        #sidebar .sidebar-content {
+            background: transparent;
+            display: flex;
+            flex-direction: column;
+            min-height: 100%;
+        }
+
+        #sidebar .sidebar-brand {
+            height: 76px;
+            min-height: 76px;
+            padding: 0 22px;
+            display: flex;
+            align-items: center;
+            color: #fff !important;
+            font-size: 15px;
+            font-weight: 700;
+            border-bottom: 1px solid #26364b;
+            white-space: nowrap;
+        }
+
+        #sidebar .sidebar-brand i,
+        #sidebar .sidebar-brand svg {
+            color: #60a5fa;
+            width: 23px;
+            height: 23px;
+            margin-right: 11px !important;
+        }
+
+        #sidebar .sidebar-nav {
+            padding: 18px 12px 25px;
+            margin: 0;
+        }
+
+        #sidebar .sidebar-header {
+            color: #8195ae;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1.2px;
+            padding: 19px 12px 9px;
+            margin: 0;
+            text-transform: uppercase;
+        }
+
+        #sidebar .sidebar-header:first-child {
+            padding-top: 8px;
+        }
+
+        #sidebar .sidebar-item {
+            margin: 3px 0;
+        }
+
+        #sidebar .sidebar-link {
+            background: transparent !important;
+            border-radius: 8px;
+            color: #b6c3d3 !important;
+            min-height: 42px;
+            padding: 10px 13px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+            font-weight: 500;
+            transition: background .2s ease, color .2s ease, transform .2s ease;
+        }
+
+        #sidebar .sidebar-link i,
+        #sidebar .sidebar-link svg {
+            width: 17px;
+            height: 17px;
+            color: #91a4bb;
+            stroke-width: 1.8;
+            flex: 0 0 17px;
+        }
+
+        #sidebar .sidebar-link:hover {
+            background: rgba(255,255,255,.07) !important;
+            color: #fff !important;
+            transform: translateX(3px);
+        }
+
+        #sidebar .sidebar-link:hover i,
+        #sidebar .sidebar-link:hover svg {
+            color: #93c5fd;
+        }
+
+        #sidebar .sidebar-item.active > .sidebar-link {
+            position: relative;
+            background: linear-gradient(90deg, #2563eb, #1d4ed8) !important;
+            color: #fff !important;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, .25);
+        }
+
+        #sidebar .sidebar-item.active > .sidebar-link i,
+        #sidebar .sidebar-item.active > .sidebar-link svg {
+            color: #fff;
+        }
+
+        #sidebar .sidebar-nav .sidebar-header:not(:first-child) {
+            margin-top: 12px;
+            border-top: 1px solid rgba(255,255,255,.06);
+            padding-top: 20px;
+        }
+
+        #sidebar .sidebar-footer {
+            margin-top: auto;
+            padding: 17px 20px;
+            background: rgba(255,255,255,.025);
+            border-top: 1px solid #26364b;
+            color: #91a4bb;
+            font-size: 11px;
+        }
+
+        #sidebar .sidebar-footer strong {
+            color: #e2eaf4;
+            font-size: 12px;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        @media (max-width: 768px) {
+            #sidebar.sidebar {
+                width: 260px;
+                min-width: 260px;
+            }
+        }
+
     </style>
 
     {% block extra_css %}{% endblock %}
@@ -240,65 +377,91 @@
                 <span class="align-middle">Distributed Banking</span>
             </a>
 
+            {% with user_role=request.user.profile.role %}
             <ul class="sidebar-nav">
-
-                <li class="sidebar-header">Overview</li>
-                <li class="sidebar-item">
+                <li class="sidebar-header">Workspace</li>
+                <li class="sidebar-item {% if request.path == '/' %}active{% endif %}">
                     <a class="sidebar-link" href="/">
-                        <i data-feather="home" class="align-middle"></i>
-                        <span class="align-middle">Dashboard</span>
+                        <i data-feather="grid"></i>
+                        <span>Dashboard</span>
                     </a>
                 </li>
 
+                {% if user_role == "BANK_ADMIN" or user_role == "SYSTEM_ADMIN" %}
                 <li class="sidebar-header">Banking</li>
-                <li class="sidebar-item">
-                    <a class="sidebar-link" href="/banks/">
-                        <i data-feather="landmark" class="align-middle"></i>
-                        <span class="align-middle">Banks</span>
+                <li class="sidebar-item {% if '/banks/' in request.path %}active{% endif %}">
+                    <a class="sidebar-link" href="{% url 'banks-page' %}">
+                        <i data-feather="landmark"></i>
+                        <span>Banks</span>
                     </a>
                 </li>
-                <li class="sidebar-item">
+                <li class="sidebar-item {% if request.path == '/accounts/' %}active{% endif %}">
                     <a class="sidebar-link" href="/accounts/">
-                        <i data-feather="credit-card" class="align-middle"></i>
-                        <span class="align-middle">Accounts</span>
+                        <i data-feather="credit-card"></i>
+                        <span>Accounts</span>
                     </a>
                 </li>
+                {% endif %}
 
-                <li class="sidebar-header">Money Transfers</li>
-                <li class="sidebar-item">
+                <li class="sidebar-header">Payments &amp; Transfers</li>
+                <li class="sidebar-item {% if 'transfers/history' in request.path %}active{% endif %}">
                     <a class="sidebar-link" href="/transfers/history/page/">
-                        <i data-feather="arrow-left-right" class="align-middle"></i>
-                        <span class="align-middle">All Transfers</span>
+                        <i data-feather="repeat"></i>
+                        <span>All Transfers</span>
                     </a>
                 </li>
-                <li class="sidebar-item">
+                <li class="sidebar-item {% if 'transfers/create' in request.path %}active{% endif %}">
                     <a class="sidebar-link" href="/transfers/create/">
-                        <i data-feather="plus-circle" class="align-middle"></i>
-                        <span class="align-middle">New Transfer</span>
+                        <i data-feather="send"></i>
+                        <span>New Transfer</span>
                     </a>
                 </li>
-                <li class="sidebar-item">
+                    {% if request.user.is_authenticated and request.user.profile.role == "CUSTOMER" %}
+                    <li class="sidebar-header">My Banking</li>
+
+                    <li class="sidebar-item {% if 'my-banking' in request.path %}active{% endif %}">
+                        <a class="sidebar-link" href="{% url 'my-banking-page' %}">
+                            <i data-feather="wallet"></i>
+                            <span>My Banking</span>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                {% if user_role == "BANK_ADMIN" or user_role == "SYSTEM_ADMIN" %}
+                <li class="sidebar-item {% if 'recovery-monitoring' in request.path %}active{% endif %}">
                     <a class="sidebar-link" href="/recovery-monitoring/">
-                        <i data-feather="refresh-cw" class="align-middle"></i>
-                        <span class="align-middle">Recovery Monitoring</span>
+                        <i data-feather="activity"></i>
+                        <span>Recovery Monitoring</span>
                     </a>
                 </li>
-                <li class="sidebar-item">
+                <li class="sidebar-item {% if 'transactions' in request.path %}active{% endif %}">
                     <a class="sidebar-link" href="/transactions/">
-                        <i data-feather="list" class="align-middle"></i>
-                        <span class="align-middle">Transaction Ledger</span>
+                        <i data-feather="book-open"></i>
+                        <span>Transaction Ledger</span>
                     </a>
                 </li>
 
-                <li class="sidebar-header">System</li>
-                <li class="sidebar-item">
+                <li class="sidebar-header">Administration</li>
+                <li class="sidebar-item {% if 'customers' in request.path %}active{% endif %}">
+                    <a class="sidebar-link" href="{% url 'customer-management' %}">
+                        <i data-feather="users"></i>
+                        <span>Customers</span>
+                    </a>
+                </li>
+                <li class="sidebar-item {% if request.path|slice:':7' == '/admin/' %}active{% endif %}">
                     <a class="sidebar-link" href="/admin/">
-                        <i data-feather="settings" class="align-middle"></i>
-                        <span class="align-middle">Administration</span>
+                        <i data-feather="settings"></i>
+                        <span>Administration</span>
                     </a>
                 </li>
-
+                {% endif %}
             </ul>
+            {% endwith %}
+
+            <div class="sidebar-footer">
+                <strong>Distributed Banking</strong>
+                <span>Secure inter-bank platform</span>
+            </div>
         </div>
     </nav>
 
@@ -340,14 +503,15 @@
 
                         <div class="dropdown-menu dropdown-menu-end">
                             {% if request.user.is_authenticated %}
+                                {% if request.user.profile.role == "BANK_ADMIN" or request.user.profile.role == "SYSTEM_ADMIN" %}
                                 <a class="dropdown-item" href="/admin/">
                                     <i data-feather="user" class="me-2"></i>
                                     Administration
                                 </a>
-
                                 <div class="dropdown-divider"></div>
+                                {% endif %}
 
-                                <form method="post" action="/admin/logout/">
+                               <form method="post" action="{% url 'logout' %}">
                                     {% csrf_token %}
                                     <button type="submit" class="dropdown-item">
                                         <i data-feather="log-out" class="me-2"></i>
@@ -436,9 +600,11 @@
 
                     <div class="col-md-6 text-end">
                         <span class="me-2">Banking Platform</span>
+                        {% if request.user.profile.role == "BANK_ADMIN" or request.user.profile.role == "SYSTEM_ADMIN" %}
                         <a href="/admin/" class="text-muted">
                             Administration
                         </a>
+                        {% endif %}
                     </div>
 
                 </div>

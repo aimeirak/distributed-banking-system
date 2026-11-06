@@ -5,6 +5,7 @@ from rest_framework_simplejwt.views import (
 )
 
 from transfers.views import (
+    CustomerBankingTransactionsAPIView,
     TransferCreateAPIView,
     TransferDetailAPIView,
     TransferRecoveryAPIView,
@@ -13,7 +14,11 @@ from transfers.views import (
     CustomerSourceAccountsAPIView,
     VerifyDestinationAccountAPIView,
     CustomerTransferListAPIView,
-    AccountManagementAPIView
+    AccountManagementAPIView,
+    AdminAccountManagementAPIView,
+    BanksPageView,
+    CustomerBankingAPIView,
+    MyBankingPageView
 )
 from transfers.recovery_views import (
     RecoveryMonitoringAPIView,
@@ -27,8 +32,6 @@ from transfers.transaction_ledger_views import (
 )
 from transfers import views
 from transfers.auth_views import login_page, logout_page,register_page
-
-
 urlpatterns = [
     path("auth/register/", CustomerRegistrationAPIView.as_view(), name="customer-register"),
     path("auth/token/", TokenObtainPairView.as_view(), name="token-obtain"),
@@ -52,4 +55,11 @@ urlpatterns = [
     path("transactions/", transaction_ledger_page, name="transaction-ledger-page"),
     path("transactions/api/", TransactionLedgerAPIView.as_view(), name="transaction-ledger-api"),
     path("register/", register_page, name="register"),
+    path("customers/",views.CustomerManagementView.as_view(),name="customer-management"),
+    path( "customers/<int:pk>/",views.CustomerDetailView.as_view(),name="customer-detail"),
+    path("api/admin/accounts/",views.AdminAccountManagementAPIView.as_view(),name="admin-account-management-api"),
+    path("banks/", views.BanksPageView.as_view(), name="banks-page"),
+    path("customer/banking/api/",CustomerBankingAPIView.as_view(),name="customer-banking-api"),
+    path("my-banking/",views.MyBankingPageView.as_view(),name="my-banking-page"),
+    path("customer/banking/transactions/",CustomerBankingTransactionsAPIView.as_view(),name="customer-banking-transactions-api"),
 ]

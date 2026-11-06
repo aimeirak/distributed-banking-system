@@ -10,33 +10,44 @@ from django.shortcuts import get_object_or_404
 from accounts.models import BankAccount, AccountReservation
 from ledger.models import LedgerEntry
 
+from decimal import Decimal, InvalidOperation
+from uuid import UUID
 
-def create_account(account_number, customer_name, initial_balance=Decimal("0.00"),
-                   currency="RWF"):
-    """
-    Create a new bank account.
+from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.shortcuts import get_object_or_404
 
-    Initial balance is supported for demo/test account setup.
-    In production, opening funds should be recorded through a
-    controlled funding operation and corresponding ledger entry.
-    """
+from accounts.models import BankAccount
+from ledger.models import AccountTransaction
 
+def create_account(
+    account_number,
+    customer_name,
+    initial_balance=Decimal("0.00"),
+    currency="RWF",
+    owner_customer_id=None
+):
     initial_balance = Decimal(str(initial_balance))
 
     if initial_balance < 0:
         raise ValidationError("Initial balance cannot be negative.")
 
     if initial_balance.as_tuple().exponent < -2:
-        raise ValidationError("Amount cannot have more than two decimal places.")
+        raise ValidationError(
+            "Amount cannot have more than two decimal places."
+        )
 
     if not account_number or not customer_name:
-        raise ValidationError("Account number and customer name are required.")
+        raise ValidationError(
+            "Account number and customer name are required."
+        )
 
     return BankAccount.objects.create(
         account_number=account_number,
         customer_name=customer_name,
         balance=initial_balance,
-        currency=currency
+        currency=currency,
+        owner_customer_id=owner_customer_id
     )
 
 
@@ -296,3 +307,167 @@ def verify_account_ownership(account_id, customer_id):
         )
 
     return account
+
+def _validate_account_transaction_amount(amount):
+    try:
+        amount = Decimal(str(amount))
+    except (InvalidOperation, TypeError, ValueError):
+        raise ValidationError("Amount must be a valid decimal number.")
+
+    if not amount.is_finite() or amount <= Decimal("0"):
+        raise ValidationError("Amount must be greater than zero.")
+
+    if amount.as_tuple().exponent < -2:
+        raise ValidationError("Amount cannot have more than two decimal places.")
+
+    return amount
+
+
+def _process_account_transaction(
+    *,
+    account_id,
+    customer_id,
+    transaction_reference,
+    amount,
+    transaction_type,
+    description="",
+):
+    """
+    Atomically update the account balance and create the transaction record.
+    Repeating the same reference and payload returns the original transaction.
+    """
+
+    try:
+        customer_id = UUID(str(customer_id))
+        transaction_reference = UUID(str(transaction_reference))
+    except (TypeError, ValueError, AttributeError):
+        raise ValidationError("Customer ID and transaction reference must be valid UUIDs.")
+
+    amount = _validate_account_transaction_amount(amount)
+
+    allowed_types = {
+        AccountTransaction.TransactionType.CASH_DEPOSIT,
+        AccountTransaction.TransactionType.MOBILE_MONEY_DEPOSIT,
+        AccountTransaction.TransactionType.CASH_WITHDRAWAL,
+    }
+    if transaction_type not in allowed_types:
+        raise ValidationError("Unsupported account transaction type.")
+
+    with transaction.atomic():
+        account = get_object_or_404(
+            BankAccount.objects.select_for_update(),
+            id=account_id,
+        )
+
+        if account.owner_customer_id != customer_id:
+            raise ValidationError("Customer does not own this bank account.")
+
+        if account.status != BankAccount.AccountStatus.ACTIVE:
+            raise ValidationError("Bank account is not active.")
+
+        existing = AccountTransaction.objects.filter(
+            transaction_reference=transaction_reference
+        ).first()
+
+        if existing:
+            if (
+                existing.account_id != account.id
+                or existing.customer_id != customer_id
+                or existing.amount != amount
+                or existing.transaction_type != transaction_type
+            ):
+                raise ValidationError(
+                    "Transaction reference already exists with different details."
+                )
+            return existing, False
+
+        balance_before = account.balance
+
+        if transaction_type == AccountTransaction.TransactionType.CASH_WITHDRAWAL:
+            reserved_total = (
+                AccountReservation.objects.filter(
+                    account=account,
+                    status=AccountReservation.ReservationStatus.RESERVED,
+                ).aggregate(total=Sum("amount"))["total"]
+                or Decimal("0.00")
+            )
+            available_balance = account.balance - reserved_total
+
+            if available_balance < amount:
+                raise ValidationError("Insufficient available balance.")
+
+            account.balance -= amount
+        else:
+            account.balance += amount
+
+        account.save(update_fields=["balance", "updated_at"])
+
+        account_transaction = AccountTransaction.objects.create(
+            account=account,
+            transaction_reference=transaction_reference,
+            transaction_type=transaction_type,
+            amount=amount,
+            currency=account.currency,
+            balance_before=balance_before,
+            balance_after=account.balance,
+            customer_id=customer_id,
+            description=(description or "")[:255],
+        )
+
+        return account_transaction, True
+
+
+def deposit_cash(
+    *,
+    account_id,
+    customer_id,
+    transaction_reference,
+    amount,
+    description="",
+):
+    return _process_account_transaction(
+        account_id=account_id,
+        customer_id=customer_id,
+        transaction_reference=transaction_reference,
+        amount=amount,
+        transaction_type=AccountTransaction.TransactionType.CASH_DEPOSIT,
+        description=description,
+    )
+
+
+def deposit_mobile_money(
+    *,
+    account_id,
+    customer_id,
+    transaction_reference,
+    amount,
+    description="",
+):
+    # Academic simulation: the caller represents a trusted, verified funding flow.
+    return _process_account_transaction(
+        account_id=account_id,
+        customer_id=customer_id,
+        transaction_reference=transaction_reference,
+        amount=amount,
+        transaction_type=AccountTransaction.TransactionType.MOBILE_MONEY_DEPOSIT,
+        description=description,
+    )
+
+
+def withdraw_cash(
+    *,
+    account_id,
+    customer_id,
+    transaction_reference,
+    amount,
+    description="",
+):
+    return _process_account_transaction(
+        account_id=account_id,
+        customer_id=customer_id,
+        transaction_reference=transaction_reference,
+        amount=amount,
+        transaction_type=AccountTransaction.TransactionType.CASH_WITHDRAWAL,
+        description=description,
+    )
+

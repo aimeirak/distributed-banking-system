@@ -7,15 +7,20 @@ class BankAccountSerializer(serializers.ModelSerializer):
     class Meta:
         model = BankAccount
         fields = [
-            'id',
-            'account_number',
-            'customer_name',
-            'currency',
-            'balance',
-            'status',
-            'created_at',
+            "id",
+            "account_number",
+            "customer_name",
+            "currency",
+            "balance",
+            "status",
+            "owner_customer_id",
+            "created_at",
         ]
-        read_only_fields = ['id', 'created_at']
+        read_only_fields = [
+            "id",
+            "owner_customer_id",
+            "created_at",
+        ]
 
 
 class CreditAccountSerializer(serializers.Serializer):
